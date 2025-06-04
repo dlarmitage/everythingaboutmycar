@@ -1,7 +1,7 @@
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment, useState, useEffect } from 'react';
 import ManualServiceRecordForm from './ManualServiceRecordForm';
-import { PhotoIcon, SparklesIcon } from '@heroicons/react/24/solid';
+import { SparklesIcon } from '@heroicons/react/24/solid';
 import type { ServiceRecordInsert, ServiceItemInsert, ServiceRecord, ServiceItem } from '../types';
 import { getServiceRecordById, getServiceItemsByRecordId } from '../services/serviceRecordService';
 
@@ -29,6 +29,9 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
   useEffect(() => {
     const fetchExistingData = async () => {
       if (!serviceRecordId || !open) return;
+      
+      // Force manual tab when editing
+      setSelectedTab('manual');
       
       setIsLoading(true);
       try {
@@ -126,29 +129,24 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
                   </div>
                 )}
                 
-                {/* Tab Navigation */}
+                {/* Tabs */}
                 <div className="border-b border-gray-200">
                   <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                     <button
                       onClick={() => setSelectedTab('manual')}
-                      className={`${selectedTab === 'manual' 
-                        ? 'border-blue-500 text-blue-600' 
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}
-                        whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+                      className={`${selectedTab === 'manual' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                     >
-                      <PhotoIcon className="h-5 w-5 mr-2" />
                       Manual Entry
                     </button>
-                    <button
-                      onClick={() => setSelectedTab('ai')}
-                      className={`${selectedTab === 'ai' 
-                        ? 'border-blue-500 text-blue-600' 
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}
-                        whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
-                    >
-                      <SparklesIcon className="h-5 w-5 mr-2" />
-                      Use AI
-                    </button>
+                    {/* Only show AI tab for new records */}
+                    {!serviceRecordId && (
+                      <button
+                        onClick={() => setSelectedTab('ai')}
+                        className={`${selectedTab === 'ai' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                      >
+                        Use AI
+                      </button>
+                    )}
                   </nav>
                 </div>
                 
