@@ -22,9 +22,7 @@ const VehicleForm = () => {
     vin: '',
     mileage: 0,
     purchase_date: '',
-    insurance_provider: '',
-    insurance_policy: '',
-    notes: '',
+    purchase_price: null,
   });
 
   const isEditMode = Boolean(id);
@@ -38,22 +36,30 @@ const VehicleForm = () => {
   const fetchVehicle = async (vehicleId: string) => {
     try {
       setLoading(true);
+      setError(null);
+      
       const { data, error } = await supabase
         .from('vehicles')
         .select('*')
         .eq('id', vehicleId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching vehicle:', error);
+        throw error;
+      }
+      
       if (data) {
+        console.log('Vehicle data fetched:', data);
         setFormData(data);
         if (data.image_url) {
           setImagePreview(data.image_url);
         }
       }
     } catch (error) {
+      console.error('Fetch vehicle error:', error);
       if (error instanceof Error) {
-        setError(error.message);
+        setError(`Error fetching vehicle: ${error.message}`);
       } else {
         setError('An error occurred while fetching the vehicle');
       }
@@ -89,23 +95,37 @@ const VehicleForm = () => {
   const uploadImage = async (vehicleId: string): Promise<string | null> => {
     if (!imageFile) return null;
     
-    const fileExt = imageFile.name.split('.').pop();
-    const fileName = `${vehicleId}.${fileExt}`;
-    const filePath = `vehicles/${fileName}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from('vehicle-images')
-      .upload(filePath, imageFile, { upsert: true });
-    
-    if (uploadError) {
-      throw uploadError;
+    try {
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${vehicleId}.${fileExt}`;
+      const filePath = `vehicles/${fileName}`;
+      
+      console.log('Uploading image to path:', filePath);
+      
+      // Check if the bucket exists first
+      const { data: buckets } = await supabase.storage.listBuckets();
+      console.log('Available buckets:', buckets);
+      
+      const { error: uploadError } = await supabase.storage
+        .from('vehicle-images')
+        .upload(filePath, imageFile, { upsert: true });
+      
+      if (uploadError) {
+        console.error('Error uploading image:', uploadError);
+        throw uploadError;
+      }
+      
+      const { data } = supabase.storage
+        .from('vehicle-images')
+        .getPublicUrl(filePath);
+      
+      console.log('Image uploaded successfully, URL:', data.publicUrl);
+      return data.publicUrl;
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      // Don't throw here, just return null so the vehicle can still be created
+      return null;
     }
-    
-    const { data } = supabase.storage
-      .from('vehicle-images')
-      .getPublicUrl(filePath);
-    
-    return data.publicUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,54 +140,100 @@ const VehicleForm = () => {
       setLoading(true);
       setError(null);
       
+      // Make sure we have the required fields
+      if (!formData.make || !formData.model || !formData.year) {
+        setError('Make, model, and year are required');
+        setLoading(false);
+        return;
+      }
+      
+      // Only include fields that exist in the actual database schema
       const vehicleData = {
-        ...formData,
+        make: formData.make,
+        model: formData.model,
+        year: formData.year,
+        color: formData.color || null,
+        license_plate: formData.license_plate || null,
+        vin: formData.vin || null,
+        mileage: formData.mileage || null,
+        purchase_date: formData.purchase_date || null,
+        purchase_price: formData.purchase_price || null,
+        // Removed insurance_provider, insurance_policy, and notes as they don't exist in the schema
         user_id: user.id,
       };
+      
+      console.log('Submitting vehicle data:', vehicleData);
       
       let vehicleId = id;
       
       if (isEditMode && id) {
         // Update existing vehicle
-        const { error } = await supabase
+        const { error: updateError } = await supabase
           .from('vehicles')
           .update(vehicleData)
           .eq('id', id);
           
-        if (error) throw error;
+        if (updateError) {
+          console.error('Error updating vehicle:', updateError);
+          throw updateError;
+        }
+        
+        console.log('Vehicle updated successfully');
       } else {
         // Create new vehicle
-        const { data, error } = await supabase
+        const { data, error: insertError } = await supabase
           .from('vehicles')
-          .insert(vehicleData)
+          .insert([vehicleData]) // Ensure we're passing an array for insert
           .select('id')
           .single();
           
-        if (error) throw error;
+        if (insertError) {
+          console.error('Error creating vehicle:', insertError);
+          throw insertError;
+        }
+        
+        if (!data) {
+          throw new Error('No data returned from vehicle creation');
+        }
+        
         vehicleId = data.id;
+        console.log('New vehicle created with ID:', vehicleId);
       }
       
       // Upload image if provided
       if (imageFile && vehicleId) {
-        const imageUrl = await uploadImage(vehicleId);
-        
-        if (imageUrl) {
-          // Update vehicle with image URL
-          const { error } = await supabase
-            .from('vehicles')
-            .update({ image_url: imageUrl })
-            .eq('id', vehicleId);
-            
-          if (error) throw error;
+        try {
+          const imageUrl = await uploadImage(vehicleId);
+          
+          if (imageUrl) {
+            console.log('Updating vehicle with image URL:', imageUrl);
+            // Update vehicle with image URL
+            const { error: updateError } = await supabase
+              .from('vehicles')
+              .update({ image_url: imageUrl })
+              .eq('id', vehicleId);
+              
+            if (updateError) {
+              console.error('Error updating vehicle with image URL:', updateError);
+              // Don't throw here, we still want to continue even if image update fails
+            }
+          }
+        } catch (imageError) {
+          console.error('Image processing error:', imageError);
+          // Don't throw here, we still want to continue even if image upload fails
         }
       }
       
-      // Refresh vehicles and navigate back to list
+      // Refresh the vehicles list and navigate back to vehicles page
       await refreshVehicles();
       navigate('/vehicles');
     } catch (error) {
+      console.error('Form submission error:', error);
       if (error instanceof Error) {
-        setError(error.message);
+        setError(`Error: ${error.message}`);
+      } else if (typeof error === 'object' && error !== null) {
+        // Handle Supabase error objects
+        setError(`Error: ${JSON.stringify(error)}`);
       } else {
         setError('An error occurred while saving the vehicle');
       }
@@ -185,7 +251,7 @@ const VehicleForm = () => {
   }
 
   return (
-    <div>
+    <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">
           {isEditMode ? 'Edit Vehicle' : 'Add Vehicle'}
@@ -193,35 +259,26 @@ const VehicleForm = () => {
         <p className="text-gray-600">
           {isEditMode
             ? 'Update your vehicle information'
-            : 'Add a new vehicle to your account'}
+            : 'Enter your vehicle information'}
         </p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-card p-6">
+      <div className="bg-white px-6 py-8 shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl sm:p-8">
         {error && (
-          <div className="mb-6 rounded-md bg-red-50 p-4">
+          <div className="mb-6 rounded-md bg-red-50 p-4 border-l-4 border-red-400">
             <div className="flex">
               <div className="flex-shrink-0">
-                <svg
-                  className="h-5 w-5 text-red-400"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
-                    clipRule="evenodd"
-                  />
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
               </div>
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                <p className="text-sm text-red-700">{error}</p>
               </div>
             </div>
           </div>
         )}
-
+        
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -247,11 +304,7 @@ const VehicleForm = () => {
                       }}
                       className="absolute top-1 right-1 bg-white rounded-full p-1 shadow-sm hover:bg-gray-100"
                     >
-                      <svg
-                        className="h-5 w-5 text-gray-500"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
+                      <svg className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                         <path
                           fillRule="evenodd"
                           d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
@@ -267,18 +320,13 @@ const VehicleForm = () => {
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={1}
-                        d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1}
-                        d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"
+                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
                       />
                     </svg>
                   </div>
@@ -291,6 +339,12 @@ const VehicleForm = () => {
                     accept="image/*"
                     className="hidden"
                     onChange={handleImageChange}
+                    ref={(input) => {
+                      // This is used to programmatically click the file input
+                      if (input) {
+                        input.setAttribute('data-handler-attached', 'true');
+                      }
+                    }}
                   />
                   <label
                     htmlFor="image"
@@ -318,7 +372,7 @@ const VehicleForm = () => {
                   id="make"
                   name="make"
                   required
-                  value={formData.make}
+                  value={formData.make || ''}
                   onChange={handleInputChange}
                   className="form-input"
                 />
@@ -338,7 +392,7 @@ const VehicleForm = () => {
                   id="model"
                   name="model"
                   required
-                  value={formData.model}
+                  value={formData.model || ''}
                   onChange={handleInputChange}
                   className="form-input"
                 />
@@ -360,7 +414,7 @@ const VehicleForm = () => {
                   min="1900"
                   max={new Date().getFullYear() + 1}
                   required
-                  value={formData.year}
+                  value={formData.year || new Date().getFullYear()}
                   onChange={handleInputChange}
                   className="form-input"
                 />
@@ -465,55 +519,17 @@ const VehicleForm = () => {
 
             <div>
               <label
-                htmlFor="insurance_provider"
+                htmlFor="purchase_price"
                 className="block text-sm font-medium leading-6 text-gray-900"
               >
-                Insurance Provider
+                Purchase Price
               </label>
               <div className="mt-2">
                 <input
-                  type="text"
-                  id="insurance_provider"
-                  name="insurance_provider"
-                  value={formData.insurance_provider || ''}
-                  onChange={handleInputChange}
-                  className="form-input"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor="insurance_policy"
-                className="block text-sm font-medium leading-6 text-gray-900"
-              >
-                Insurance Policy Number
-              </label>
-              <div className="mt-2">
-                <input
-                  type="text"
-                  id="insurance_policy"
-                  name="insurance_policy"
-                  value={formData.insurance_policy || ''}
-                  onChange={handleInputChange}
-                  className="form-input"
-                />
-              </div>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label
-                htmlFor="notes"
-                className="block text-sm font-medium leading-6 text-gray-900"
-              >
-                Notes
-              </label>
-              <div className="mt-2">
-                <textarea
-                  id="notes"
-                  name="notes"
-                  rows={3}
-                  value={formData.notes || ''}
+                  type="number"
+                  id="purchase_price"
+                  name="purchase_price"
+                  value={formData.purchase_price || ''}
                   onChange={handleInputChange}
                   className="form-input"
                 />

@@ -40,7 +40,7 @@ function VehicleImage({ imageUrl, make, model, onImageClick }: {
   );
 }
 
-export default function VehicleCard({ vehicle, onDetails }: VehicleCardProps) {
+export default function VehicleCard({ vehicle, onDetails, onOpenServiceRecordModal }: VehicleCardProps) {
   const { setSelectedVehicle, refreshVehicles } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [updatedImageUrl, setUpdatedImageUrl] = useState<string | null>(null);
@@ -116,9 +116,15 @@ export default function VehicleCard({ vehicle, onDetails }: VehicleCardProps) {
         <div className="flex gap-2">
           <button 
             onClick={() => { setSelectedVehicle(vehicle); onDetails(vehicle); }}
-            className="w-full mt-3 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="flex-1 mt-3 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             Details
+          </button>
+          <button
+            onClick={() => onOpenServiceRecordModal(vehicle.id)}
+            className="flex-1 mt-3 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+          >
+            Service
           </button>
         </div>
       </div>

@@ -1,10 +1,11 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AppProvider } from './context/AppContext';
-import Layout from './components/Layout/Layout';
-import ProtectedRoute from './components/ProtectedRoute';
-import PublicRoute from './components/PublicRoute';
-import Test from './Test';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import MobileLayout from './layouts/MobileLayout';
+import Vehicles from './pages/Vehicles';
+import ServiceRecords from './pages/ServiceRecords';
+import Maintenance from './pages/Maintenance';
+import Recalls from './pages/Recalls';
+import { VehicleProvider } from './context/VehicleContext';
 
 // Lazy load pages for better performance
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -31,49 +32,19 @@ const LoadingFallback = () => (
 
 function App() {
   return (
-    <BrowserRouter>
-      <AppProvider>
-        <Layout>
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              {/* Protected Routes - Require Authentication */}
-              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/test" element={<ProtectedRoute><Test /></ProtectedRoute>} />
-              
-              {/* Vehicle Routes */}
-              <Route path="/vehicles" element={<ProtectedRoute><VehicleList /></ProtectedRoute>} />
-              <Route path="/vehicles/add" element={<ProtectedRoute><VehicleForm /></ProtectedRoute>} />
-              <Route path="/vehicles/:id" element={<ProtectedRoute><VehicleDetail /></ProtectedRoute>} />
-              <Route path="/vehicles/:id/edit" element={<ProtectedRoute><VehicleForm /></ProtectedRoute>} />
-              
-              {/* Maintenance Routes */}
-              <Route path="/maintenance" element={<ProtectedRoute><MaintenanceList /></ProtectedRoute>} />
-              <Route path="/maintenance/add" element={<ProtectedRoute><MaintenanceForm /></ProtectedRoute>} />
-              <Route path="/maintenance/:id" element={<ProtectedRoute><MaintenanceForm /></ProtectedRoute>} />
-              
-              {/* Document Routes */}
-              <Route path="/documents" element={<ProtectedRoute><DocumentList /></ProtectedRoute>} />
-              <Route path="/documents/upload" element={<ProtectedRoute><DocumentUpload /></ProtectedRoute>} />
-              <Route path="/documents/:id" element={<ProtectedRoute><DocumentList /></ProtectedRoute>} />
-              
-              {/* Recall Routes */}
-              <Route path="/recalls" element={<ProtectedRoute><RecallList /></ProtectedRoute>} />
-              <Route path="/recalls/new" element={<ProtectedRoute><RecallForm /></ProtectedRoute>} />
-              <Route path="/recalls/:id" element={<ProtectedRoute><RecallForm /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              
-              {/* Public Routes - Redirect to Dashboard if Authenticated */}
-              <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-              <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-              
-              {/* Fallback Routes */}
-              <Route path="/404" element={<NotFound />} />
-              <Route path="*" element={<Navigate to="/404" replace />} />
-            </Routes>
-          </Suspense>
-        </Layout>
-      </AppProvider>
-    </BrowserRouter>
+    <VehicleProvider>
+      <Router>
+        <Routes>
+          <Route element={<MobileLayout />}>
+            <Route path="/vehicles" element={<Vehicles />} />
+            <Route path="/service-records" element={<ServiceRecords />} />
+            <Route path="/maintenance" element={<Maintenance />} />
+            <Route path="/recalls" element={<Recalls />} />
+            <Route path="*" element={<Navigate to="/vehicles" replace />} />
+          </Route>
+        </Routes>
+      </Router>
+    </VehicleProvider>
   );
 }
 

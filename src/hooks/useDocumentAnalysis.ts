@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { DocumentAnalysisResult } from '../types';
 import openaiService from '../services/openai';
 import supabase from '../services/supabase';
+// @ts-ignore
+import heic2any from 'heic2any';
 
 /**
  * Custom hook for analyzing vehicle documents using OpenAI
@@ -18,10 +20,25 @@ export const useDocumentAnalysis = () => {
    * @param file - The file to convert
    * @returns Promise resolving to base64 string
    */
-  const fileToBase64 = (file: File): Promise<string> => {
+  const fileToBase64 = async (file: File): Promise<string> => {
+    let targetFile = file;
+    // Convert HEIC to JPEG if needed
+    if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
+      try {
+        const jpegBlob = await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.95,
+        });
+        // heic2any returns a Blob or an array of Blobs
+        targetFile = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob as Blob;
+      } catch (err) {
+        throw new Error('Failed to convert HEIC to JPEG: ' + (err instanceof Error ? err.message : String(err)));
+      }
+    }
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(targetFile);
       reader.onload = () => {
         if (typeof reader.result === 'string') {
           // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
@@ -34,6 +51,7 @@ export const useDocumentAnalysis = () => {
       reader.onerror = error => reject(error);
     });
   };
+
 
   /**
    * Extracts text from a PDF file
@@ -61,16 +79,33 @@ export const useDocumentAnalysis = () => {
     setError(null);
     
     try {
+      // Check if the documents bucket exists by listing buckets
+      setProgress(5);
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      
+      if (bucketsError) {
+        console.error('Error checking storage buckets:', bucketsError);
+      }
+      
+      // Log available buckets to help with debugging
+      console.log('Available storage buckets:', buckets);
+      
       // Upload file to Supabase storage
       setProgress(10);
       const fileExt = file.name.split('.').pop();
       const fileName = `${vehicleId}/${Date.now()}.${fileExt}`;
       
+      // Try to upload to the documents bucket
       const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(fileName, file);
       
-      if (uploadError) throw new Error(`Error uploading file: ${uploadError.message}`);
+      // If bucket not found, provide a helpful error message
+      if (uploadError && uploadError.message.includes('Bucket not found')) {
+        throw new Error('Storage bucket "documents" not found. Please create this bucket in your Supabase project dashboard.');
+      } else if (uploadError) {
+        throw new Error(`Error uploading file: ${uploadError.message}`);
+      }
       
       setProgress(40);
       
@@ -108,8 +143,7 @@ export const useDocumentAnalysis = () => {
           file_url: publicUrl,
           file_size: file.size,
           analyzed: true,
-          analysis_result: analysisResult,
-          processed: false
+          analysis_result: analysisResult
         })
         .select('id')
         .single();

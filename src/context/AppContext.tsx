@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import type { AppContextType, Vehicle, Profile, MaintenanceRecord, Document, RecallNotice } from '../types';
+import type { AppContextType, Vehicle, Profile, MaintenanceRecord, Document, RecallNotice, ServiceRecord, ServiceItem } from '../types';
 import { supabase } from '../services/supabase';
+import { getServiceRecords, getServiceItems } from '../services/serviceRecordService';
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -14,6 +15,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
+  const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
+  const [serviceItems, setServiceItems] = useState<ServiceItem[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [recallNotices, setRecallNotices] = useState<RecallNotice[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -51,15 +54,26 @@ export const AppProvider = ({ children }: AppProviderProps) => {
             else if (profileError.code === 'PGRST116') {
               const newProfile = {
                 id: session.user.id,
-                email: session.user.email,
+                email: session.user.email || '', // Ensure email is never undefined
                 first_name: session.user.user_metadata?.first_name || '',
                 last_name: session.user.user_metadata?.last_name || '',
                 created_at: new Date().toISOString()
               };
               
+              // Fix TypeScript error by ensuring we're passing a properly typed object
               const { data: createdProfile, error: createError } = await supabase
                 .from('profiles')
-                .insert([newProfile])
+                .insert({
+                  id: newProfile.id,
+                  email: newProfile.email,
+                  first_name: newProfile.first_name,
+                  last_name: newProfile.last_name,
+                  created_at: newProfile.created_at,
+                  // Add required fields with default values
+                  avatar_url: null,
+                  updated_at: new Date().toISOString(),
+                  notification_preferences: {}
+                })
                 .select()
                 .single();
                   
@@ -251,6 +265,32 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       setMaintenanceRecords([]);
     }
   };
+  
+  const refreshServiceRecords = async () => {
+    if (!selectedVehicle) return;
+    
+    try {
+      // Get all service records for the selected vehicle
+      const records = await getServiceRecords(selectedVehicle.id);
+      setServiceRecords(records);
+      
+      // Get all service items for these records
+      if (records.length > 0) {
+        let allItems: ServiceItem[] = [];
+        for (const record of records) {
+          const items = await getServiceItems(record.id);
+          allItems = [...allItems, ...items];
+        }
+        setServiceItems(allItems);
+      } else {
+        setServiceItems([]);
+      }
+    } catch (error) {
+      console.error('Error fetching service records:', error);
+      setServiceRecords([]);
+      setServiceItems([]);
+    }
+  };
 
   const refreshDocuments = async () => {
     if (!selectedVehicle) return;
@@ -312,14 +352,33 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     selectedVehicle,
     setSelectedVehicle,
     maintenanceRecords,
+    serviceRecords,
+    serviceItems,
     documents,
     recallNotices,
     refreshVehicles,
     refreshMaintenanceRecords,
+    refreshServiceRecords,
     refreshDocuments,
     refreshRecallNotices,
     isLoading,
   };
+  
+  // Update data when selected vehicle changes
+  useEffect(() => {
+    if (selectedVehicle) {
+      refreshMaintenanceRecords();
+      refreshServiceRecords();
+      refreshDocuments();
+      refreshRecallNotices();
+    } else {
+      setMaintenanceRecords([]);
+      setServiceRecords([]);
+      setServiceItems([]);
+      setDocuments([]);
+      setRecallNotices([]);
+    }
+  }, [selectedVehicle]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

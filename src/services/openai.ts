@@ -79,7 +79,7 @@ Format the response as a clean, well-structured JSON object with appropriate nes
 export const analyzeImage = async (imageBase64: string): Promise<any> => {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -122,7 +122,7 @@ export const analyzeImage = async (imageBase64: string): Promise<any> => {
 export const analyzePdf = async (pdfText: string): Promise<any> => {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4-turbo",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",

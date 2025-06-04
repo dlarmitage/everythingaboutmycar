@@ -59,6 +59,12 @@ const DocumentUploader = ({ onAnalysisComplete }: DocumentUploaderProps) => {
       }
     } catch (err) {
       console.error('Error analyzing document:', err);
+      
+      // Check if the error is related to the missing storage bucket
+      if (err instanceof Error && err.message.includes('Bucket not found')) {
+        // The error is already handled by the useDocumentAnalysis hook
+        // which sets the error state that will be displayed to the user
+      }
     }
   };
 

@@ -2,6 +2,8 @@ import type { Database } from './supabase';
 
 export type Vehicle = Database['public']['Tables']['vehicles']['Row'];
 export type MaintenanceRecord = Database['public']['Tables']['maintenance_records']['Row'];
+export type ServiceRecord = Database['public']['Tables']['service_records']['Row'];
+export type ServiceItem = Database['public']['Tables']['service_items']['Row'];
 
 // Base Document type from Supabase schema
 type BaseDocument = Database['public']['Tables']['documents']['Row'];
@@ -19,6 +21,8 @@ export type Profile = Database['public']['Tables']['profiles']['Row'];
 
 export type VehicleInsert = Database['public']['Tables']['vehicles']['Insert'];
 export type MaintenanceRecordInsert = Database['public']['Tables']['maintenance_records']['Insert'];
+export type ServiceRecordInsert = Database['public']['Tables']['service_records']['Insert'];
+export type ServiceItemInsert = Database['public']['Tables']['service_items']['Insert'];
 export type DocumentInsert = Database['public']['Tables']['documents']['Insert'];
 export type RecallNoticeInsert = Database['public']['Tables']['recall_notices']['Insert'];
 
@@ -30,6 +34,22 @@ export type DocumentAnalysisResult = {
     vin?: string;
     licensePlate?: string;
     color?: string;
+  };
+  serviceInfo?: {
+    serviceDate?: string;
+    mileage?: number;
+    serviceProvider?: string;
+    totalCost?: number;
+    notes?: string;
+    items?: {
+      serviceType?: string;
+      description?: string;
+      cost?: number;
+      partsReplaced?: string[];
+      quantity?: number;
+      nextServiceDate?: string;
+      nextServiceMileage?: number;
+    }[];
   };
   maintenanceInfo?: {
     serviceDate?: string;
@@ -81,10 +101,13 @@ export type AppContextType = {
   selectedVehicle: Vehicle | null;
   setSelectedVehicle: (vehicle: Vehicle | null) => void;
   maintenanceRecords: MaintenanceRecord[];
+  serviceRecords: ServiceRecord[];
+  serviceItems: ServiceItem[];
   documents: Document[];
   recallNotices: RecallNotice[];
   refreshVehicles: () => Promise<void>;
   refreshMaintenanceRecords: () => Promise<void>;
+  refreshServiceRecords: () => Promise<void>;
   refreshDocuments: () => Promise<void>;
   refreshRecallNotices: () => Promise<void>;
   isLoading: boolean;

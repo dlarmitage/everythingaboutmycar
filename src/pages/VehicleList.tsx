@@ -111,7 +111,7 @@ const VehicleList = () => {
           {filteredVehicles.map((vehicle) => (
             <div
               key={vehicle.id}
-              className="bg-white rounded-lg shadow-card overflow-hidden"
+              className="bg-white rounded-lg shadow-card overflow-hidden w-full min-w-[250px]"
             >
               <div className="h-40 bg-gray-200 flex items-center justify-center">
                 {vehicle.image_url ? (
