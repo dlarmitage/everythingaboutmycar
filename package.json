@@ -5,20 +5,32 @@
   "type": "module",
   "scripts": {
     "dev": "bash -c 'kill $(lsof -t -i:5173-5180 2>/dev/null) 2>/dev/null || true && vite'",
+    "api": "bash -c 'kill $(lsof -t -i:3001 2>/dev/null) 2>/dev/null || true && node server.js'",
+    "dev:all": "concurrently \"npm run api\" \"npm run dev\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.4",
+    "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.49.8",
     "canvas-confetti": "^1.9.3",
+    "concurrently": "^8.2.2",
+    "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "heic2any": "^0.0.4",
+    "http-proxy-middleware": "^2.0.9",
     "openai": "^4.103.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-qr-barcode-scanner": "^2.1.6",
     "react-router-dom": "^7.6.1",
     "recharts": "^2.15.3",
+    "tw-elements-react": "^1.0.0-alpha-end",
     "workbox-window": "^7.3.0"
   },
   "devDependencies": {
