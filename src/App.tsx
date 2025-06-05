@@ -5,6 +5,7 @@ import Vehicles from './pages/Vehicles';
 import ServiceRecords from './pages/ServiceRecords';
 import Maintenance from './pages/Maintenance';
 import Recalls from './pages/Recalls';
+import Landing from './pages/Landing';
 import { VehicleProvider } from './context/VehicleContext';
 import { useApp } from './context/useApp';
 
@@ -47,6 +48,11 @@ function AppRoutes() {
   
   return (
     <Routes>
+      {/* Landing page for non-authenticated users */}
+      <Route path="/" element={
+        user ? <Navigate to="/vehicles" replace /> : <Landing />
+      } />
+      
       {/* Auth routes */}
       <Route path="/login" element={
         <Suspense fallback={<LoadingFallback />}>
@@ -89,11 +95,6 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
       </Route>
-      
-      {/* Redirect root to login or vehicles based on auth state */}
-      <Route path="/" element={
-        user ? <Navigate to="/vehicles" replace /> : <Navigate to="/login" replace />
-      } />
       
       {/* Catch all route */}
       <Route path="*" element={<Navigate to="/" replace />} />
