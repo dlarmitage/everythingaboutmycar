@@ -48,7 +48,25 @@ export default function Recalls() {
   return (
     <div className="p-4 pb-20">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">Recalls</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold">Recalls</h1>
+          <button
+            className={`w-8 h-8 flex items-center justify-center rounded-lg shadow-sm border ${selectedVehicleId ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
+            onClick={() => {
+              // TODO: Open recall search/add modal
+              if (selectedVehicleId) {
+                console.log('Check recalls for vehicle:', selectedVehicleId);
+              }
+            }}
+            disabled={!selectedVehicleId}
+            aria-label="Check Recalls"
+            title={selectedVehicleId ? 'Check Recalls' : 'Select a vehicle first'}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        </div>
         <VehicleSelectorDropdown 
           onVehicleSelect={(vehicleId) => setSelectedVehicleId(vehicleId)}
         />

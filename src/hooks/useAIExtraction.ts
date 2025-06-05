@@ -85,6 +85,46 @@ export default function useAIExtraction({ onSaveServiceRecord }: UseAIExtraction
       // Log the analysis result for debugging
       console.log('Processing AI analysis result:', analysisResult);
       
+      // Check if we have the new structured format with rawStructuredData
+      const rawData = (analysisResult as any).rawStructuredData;
+      
+      if (rawData && rawData.service_record && rawData.service_items) {
+        // Use the new structured format
+        console.log('Using new structured data format');
+        
+        const serviceRecord: ServiceRecordInsert = {
+          vehicle_id: '', // This will be set by the parent component when saving
+          service_date: rawData.service_record.service_date || new Date().toISOString().split('T')[0],
+          mileage: rawData.service_record.mileage || null,
+          service_provider: rawData.service_record.service_provider || '',
+          total_cost: rawData.service_record.total_cost || null,
+          notes: rawData.service_record.notes || '',
+        };
+        
+        // Create service items from the structured data
+        const serviceItems: ServiceItemInsert[] = rawData.service_items.map((item: any) => ({
+          service_record_id: '', // Will be filled in after service record is created
+          service_type: item.service_type || 'Other Service',
+          description: item.description || '',
+          cost: item.cost || null,
+          parts_replaced: item.parts_replaced || null,
+          quantity: item.quantity || null,
+          next_service_date: item.next_service_date || null,
+          next_service_mileage: item.next_service_mileage || null,
+        }));
+        
+        console.log('Extracted service record:', serviceRecord);
+        console.log('Extracted service items:', serviceItems);
+        
+        setExtractedRecord(serviceRecord);
+        setExtractedItems(serviceItems);
+        setError(null);
+        return;
+      }
+      
+      // Fallback to legacy format processing
+      console.log('Using legacy data format');
+      
       // Extract data from the appropriate structure
       // The API might return data in different formats, so we need to handle both
       const maintenanceInfo = (analysisResult.maintenanceInfo || {}) as MaintenanceInfo;

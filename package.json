@@ -27,6 +27,7 @@
     "heic2any": "^0.0.4",
     "http-proxy-middleware": "^2.0.9",
     "openai": "^4.103.0",
+    "pdfjs-dist": "^5.3.31",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-qr-barcode-scanner": "^2.1.6",

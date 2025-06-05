@@ -179,7 +179,36 @@ const DocumentList = () => {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
+            <Link 
+              to="/documents/upload"
+              className="w-8 h-8 flex items-center justify-center rounded-lg shadow-sm border bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+              aria-label="Upload Document"
+              title="Upload New Document"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </Link>
+          </div>
+          <div className="w-64">
+            <select
+              id="vehicle-filter"
+              className="form-input w-full"
+              value={selectedVehicle?.id || 'all'}
+              onChange={handleVehicleChange}
+            >
+              <option value="all">All Vehicles</option>
+              {vehicles.map((vehicle) => (
+                <option key={vehicle.id} value={vehicle.id}>
+                  {vehicle.year} {vehicle.make} {vehicle.model} {vehicle.license_plate ? `(${vehicle.license_plate})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
         <p className="text-gray-600">
           Manage and view all your vehicle-related documents
         </p>
@@ -188,25 +217,6 @@ const DocumentList = () => {
       <div className="bg-white rounded-lg shadow-card p-6 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="w-full sm:w-64">
-              <label htmlFor="vehicle-filter" className="sr-only">
-                Filter by Vehicle
-              </label>
-              <select
-                id="vehicle-filter"
-                className="form-input"
-                value={selectedVehicle?.id || 'all'}
-                onChange={handleVehicleChange}
-              >
-                <option value="all">All Vehicles</option>
-                {vehicles.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.year} {vehicle.make} {vehicle.model} {vehicle.license_plate ? `(${vehicle.license_plate})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             <div className="w-full sm:w-64">
               <label htmlFor="document-type-filter" className="sr-only">
                 Filter by Document Type
@@ -253,12 +263,6 @@ const DocumentList = () => {
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="flex justify-end mb-6">
-          <Link to="/documents/upload" className="btn-primary">
-            Upload New Document
-          </Link>
         </div>
 
         {error && (

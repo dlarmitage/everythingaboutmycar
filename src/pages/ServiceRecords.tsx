@@ -61,29 +61,31 @@ export default function ServiceRecords() {
   return (
     <div className="p-4 pb-20">
       <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold">Service Records</h1>
-          <VehicleSelectorDropdown 
-            onVehicleSelect={(vehicleId) => setSelectedVehicleId(vehicleId)} 
-            selectedVehicleId={selectedVehicleId}
-          />
+          <button
+            className={`w-8 h-8 flex items-center justify-center rounded-lg shadow-sm border ${selectedVehicleId ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
+            onClick={() => {
+              // Only open modal if a vehicle is selected
+              if (selectedVehicleId) {
+                // Clear selected service record ID for new records
+                setSelectedServiceRecordId(null);
+                setModalOpen(true);
+              }
+            }}
+            disabled={!selectedVehicleId}
+            aria-label="Add Service Record"
+            title={selectedVehicleId ? 'Add Service Record' : 'Select a vehicle first'}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
         </div>
-        <button
-          className={`rounded-full w-10 h-10 flex items-center justify-center shadow-lg ${selectedVehicleId ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
-          onClick={() => {
-            // Only open modal if a vehicle is selected
-            if (selectedVehicleId) {
-              // Clear selected service record ID for new records
-              setSelectedServiceRecordId(null);
-              setModalOpen(true);
-            }
-          }}
-          disabled={!selectedVehicleId}
-          aria-label="Add Service Record"
-          title={selectedVehicleId ? 'Add Service Record' : 'Select a vehicle first'}
-        >
-          <span className="text-2xl">+</span>
-        </button>
+        <VehicleSelectorDropdown 
+          onVehicleSelect={(vehicleId) => setSelectedVehicleId(vehicleId)} 
+          selectedVehicleId={selectedVehicleId}
+        />
       </div>
       {/* Service records grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

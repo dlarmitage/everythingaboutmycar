@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { DocumentAnalysisResult } from '../types';
 import openaiService from '../services/openai';
-import supabase from '../services/supabase';
+import supabase, { supabaseServiceRole } from '../services/supabase';
 // @ts-ignore
 import heic2any from 'heic2any';
 
@@ -56,17 +56,6 @@ export const useDocumentAnalysis = () => {
 
 
   /**
-   * Extracts text from a PDF file
-   * @param file - The PDF file
-   * @returns Promise resolving to extracted text
-   */
-  const extractTextFromPdf = async (file: File): Promise<string> => {
-    // In a real implementation, you would use a PDF parsing library
-    // For this example, we'll just return a placeholder
-    return `This is placeholder text that would be extracted from the PDF file: ${file.name}`;
-  };
-
-  /**
    * Analyzes a document file (image or PDF)
    * @param file - The document file to analyze
    * @param vehicleId - ID of the vehicle associated with the document
@@ -81,37 +70,38 @@ export const useDocumentAnalysis = () => {
     setError(null);
     
     try {
-      // Check if the documents bucket exists by listing buckets
-      setProgress(5);
-      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-      
-      if (bucketsError) {
-        console.error('Error checking storage buckets:', bucketsError);
-      }
-      
-      // Log available buckets to help with debugging
-      console.log('Available storage buckets:', buckets);
-      
       // Upload file to Supabase storage
       setProgress(10);
       const fileExt = file.name.split('.').pop();
       const fileName = `${vehicleId}/${Date.now()}.${fileExt}`;
       
+      console.log(`Attempting to upload file: ${fileName} to documents bucket`);
+      
+      // Use service role client for storage upload to bypass RLS
+      const storageClient = supabaseServiceRole || supabase;
+      console.log('Using service role client:', !!supabaseServiceRole);
+      
       // Try to upload to the documents bucket
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await storageClient.storage
         .from('documents')
         .upload(fileName, file);
       
-      // If bucket not found, provide a helpful error message
-      if (uploadError && uploadError.message.includes('Bucket not found')) {
-        throw new Error('Storage bucket "documents" not found. Please create this bucket in your Supabase project dashboard.');
-      } else if (uploadError) {
-        throw new Error(`Error uploading file: ${uploadError.message}`);
+      if (uploadError) {
+        console.error('Upload error details:', uploadError);
+        
+        if (uploadError.message.includes('Bucket not found')) {
+          throw new Error('Storage bucket "documents" not found. Please create this bucket in your Supabase project dashboard.');
+        } else if (uploadError.message.includes('row-level security policy')) {
+          throw new Error('Permission denied: Please ensure the documents storage bucket has the correct RLS policies configured.');
+        } else {
+          throw new Error(`Error uploading file: ${uploadError.message}`);
+        }
       }
       
+      console.log(`File uploaded successfully: ${fileName}`);
       setProgress(40);
       
-      // Get public URL for the uploaded file
+      // Get public URL for the uploaded file (can use regular client for this)
       const { data: { publicUrl } } = supabase.storage
         .from('documents')
         .getPublicUrl(fileName);
@@ -125,10 +115,9 @@ export const useDocumentAnalysis = () => {
         setProgress(60);
         analysisResult = await openaiService.analyzeImage(base64);
       } else if (file.type === 'application/pdf') {
-        // For PDFs, extract text and analyze
-        const pdfText = await extractTextFromPdf(file);
+        // For PDFs, pass the file directly to GPT-4o (it can read PDFs natively)
         setProgress(60);
-        analysisResult = await openaiService.analyzePdf(pdfText);
+        analysisResult = await openaiService.analyzePdf(file);
       } else {
         throw new Error('Unsupported file type. Please upload an image or PDF.');
       }

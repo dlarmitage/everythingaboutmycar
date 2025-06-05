@@ -12,77 +12,88 @@ const openai = new OpenAI({
 });
 
 /**
- * The comprehensive prompt for analyzing vehicle maintenance receipts
+ * Comprehensive prompt for extracting vehicle service data in our exact database format
  */
-const VEHICLE_DOCUMENT_ANALYSIS_PROMPT = `
-Analyze this vehicle maintenance receipt image and extract all available information into the EXACT structured JSON format specified below. Follow this schema precisely:
+const SERVICE_EXTRACTION_PROMPT = `
+You are an expert automotive service document analyzer. Extract ALL service information from this document and return it in the EXACT JSON format specified below.
+
+CRITICAL REQUIREMENTS:
+1. Return data that maps DIRECTLY to our database tables
+2. Extract EVERY service item as a separate entry
+3. Use consistent, standardized service types
+4. Convert all dates to YYYY-MM-DD format
+5. Convert all monetary values to numbers (no currency symbols)
+6. Use null for missing values, never empty strings
+7. Be very specific about service types and descriptions
+
+REQUIRED JSON STRUCTURE:
 
 {
-  "customer": {
-    "name": "string or null",
-    "address": "string or null",
-    "phone": "string or null",
-    "email": "string or null"
+  "service_record": {
+    "service_date": "YYYY-MM-DD",
+    "service_provider": "Exact business name from document",
+    "mileage": number_or_null,
+    "total_cost": number_or_null,
+    "notes": "Any additional notes, warranty info, recommendations"
   },
-  "vehicle": {
-    "make": "string or null",
-    "model": "string or null",
-    "year": "number or null",
-    "vin": "string or null",
-    "license_plate": "string or null",
-    "odometer": "number or null",
-    "odometer_unit": "miles or km or null",
-    "engine": "string or null"
-  },
-  "service_information": {
-    "service_date": "YYYY-MM-DD format or null",
-    "invoice_number": "string or null",
-    "service_provider": "string or null",
-    "technician": "string or null",
-    "location": "string or null"
-  },
-  "services": [
+  "service_items": [
     {
-      "category": "string (e.g., 'Oil Change', 'Brake Service', etc.)",
-      "description": "string",
-      "details": {
-        // Any relevant specifications like oil_type, filter_type, etc.
-      },
-      "parts_replaced": ["string", "string"],
-      "quantity": "number or null",
-      "quantity_unit": "string or null",
-      "price": "number or null"
+      "service_type": "STANDARDIZED_TYPE",
+      "description": "Detailed description of what was done",
+      "cost": number_or_null,
+      "parts_replaced": ["part1", "part2"] or null,
+      "quantity": number_or_null,
+      "next_service_date": "YYYY-MM-DD" or null,
+      "next_service_mileage": number_or_null
     }
   ],
-  "inspections": [
-    {
-      "type": "string",
-      "result": "string",
-      "notes": "string or null"
-    }
-  ],
-  "payment": {
-    "subtotal": "number or null",
-    "tax": "number or null",
-    "discount": "number or null",
-    "total": "number or null",
-    "method": "string or null"
-  },
-  "additional_information": {
-    "warranty": "string or null",
-    "recommended_next_service_date": "YYYY-MM-DD format or null",
-    "recommended_next_service_mileage": "number or null",
-    "notes": "string or null"
+  "vehicle_info": {
+    "make": "string_or_null",
+    "model": "string_or_null", 
+    "year": number_or_null,
+    "vin": "string_or_null",
+    "license_plate": "string_or_null"
   }
 }
 
-Important rules:
-1. Convert all monetary values to numeric format without currency symbols
-2. Use ISO format dates (YYYY-MM-DD)
-3. Use null for missing values, not empty strings
-4. For odometer readings, extract just the numeric value and specify the unit separately
-5. Include all service items with their details
-6. Follow the exact field names shown above
+STANDARDIZED SERVICE TYPES (use these exact values):
+- "Oil Change"
+- "Filter Replacement" 
+- "Brake Service"
+- "Tire Service"
+- "Engine Service"
+- "Transmission Service"
+- "Cooling System"
+- "Electrical System"
+- "Suspension"
+- "Exhaust System"
+- "Fuel System"
+- "Air Conditioning"
+- "Battery Service"
+- "Inspection"
+- "Diagnostic"
+- "Fluid Service"
+- "Belt/Hose Service"
+- "Tune-Up"
+- "Emission Service"
+- "Other Service"
+
+EXTRACTION RULES:
+1. Create separate service_items for each distinct service performed
+2. If oil change includes filter, create TWO items: "Oil Change" and "Filter Replacement"
+3. Group related parts in parts_replaced array
+4. Extract specific part numbers, brands, specifications when available
+5. Include labor and parts costs separately if itemized
+6. Extract next service recommendations with specific dates/mileage
+7. Be very detailed in descriptions - include oil type, filter type, part numbers, etc.
+
+EXAMPLES:
+- Oil change with filter → Two items: "Oil Change" (5W-30 Full Synthetic) + "Filter Replacement" (AC Delco PF123)
+- Brake pad replacement → "Brake Service" with parts_replaced: ["Front brake pads", "Brake hardware kit"]
+- Multi-point inspection → "Inspection" with detailed findings in description
+- Tire rotation → "Tire Service" with description of rotation pattern
+
+Extract EVERYTHING - don't miss any service items, parts, or recommendations!
 `;
 
 /**
@@ -97,14 +108,14 @@ export const analyzeImage = async (imageBase64: string): Promise<any> => {
       messages: [
         {
           role: "system",
-          content: "You are an expert automotive technician and document analyst specializing in extracting detailed information from vehicle maintenance records, service invoices, and related documents."
+          content: "You are an expert automotive service document analyzer. Your job is to extract comprehensive service information and return it in a structured format that maps directly to a vehicle service database."
         },
         {
           role: "user",
           content: [
             { 
               type: "text", 
-              text: VEHICLE_DOCUMENT_ANALYSIS_PROMPT
+              text: SERVICE_EXTRACTION_PROMPT
             },
             {
               type: "image_url",
@@ -119,9 +130,11 @@ export const analyzeImage = async (imageBase64: string): Promise<any> => {
       response_format: { type: "json_object" },
     });
 
-    // Parse and transform the response into our application's format
     const rawResult = JSON.parse(response.choices[0]?.message?.content || '{}');
-    return transformAnalysisResult(rawResult);
+    console.log('Raw OpenAI extraction result:', rawResult);
+    
+    // Transform to our DocumentAnalysisResult format
+    return transformToDocumentAnalysisResult(rawResult);
   } catch (error) {
     console.error('Error analyzing image:', error);
     throw error;
@@ -129,225 +142,159 @@ export const analyzeImage = async (imageBase64: string): Promise<any> => {
 };
 
 /**
- * Analyzes a PDF document using OpenAI's API
- * @param pdfText - Extracted text from PDF
+ * Analyzes a PDF document using OpenAI's API by converting to images first
+ * @param file - The PDF file
  * @returns Structured analysis of the vehicle document
  */
-export const analyzePdf = async (pdfText: string): Promise<any> => {
+export const analyzePdf = async (file: File): Promise<any> => {
   try {
+    // Import PDF.js dynamically
+    const pdfjsLib = await import('pdfjs-dist');
+    
+    // Set up the worker - use a more reliable approach
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/js/pdf.worker.min.js';
+    }
+    
+    // Convert file to array buffer
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Load the PDF with better error handling
+    let pdf;
+    try {
+      pdf = await pdfjsLib.getDocument({ 
+        data: arrayBuffer,
+        cMapUrl: 'https://unpkg.com/pdfjs-dist@3.11.174/cmaps/',
+        cMapPacked: true,
+      }).promise;
+    } catch (pdfError) {
+      console.error('PDF loading error:', pdfError);
+      throw new Error(`Failed to load PDF: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`);
+    }
+    
+    const numPages = pdf.numPages;
+    console.log(`PDF has ${numPages} pages`);
+    
+    // Convert each page to image
+    const imagePromises = [];
+    for (let pageNum = 1; pageNum <= Math.min(numPages, 5); pageNum++) { // Limit to first 5 pages
+      imagePromises.push(convertPdfPageToImage(pdf, pageNum));
+    }
+    
+    const images = await Promise.all(imagePromises);
+    
+    // Prepare content for OpenAI with all page images
+    const content: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }> = [
+      {
+        type: "text" as const,
+        text: `Please analyze this ${numPages}-page automotive service document and extract service information according to these requirements:\n\n${SERVICE_EXTRACTION_PROMPT}`
+      }
+    ];
+    
+    // Add each page image to the content
+    images.forEach((imageDataUrl) => {
+      content.push({
+        type: "image_url" as const,
+        image_url: {
+          url: imageDataUrl,
+        },
+      });
+    });
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: "You are an expert automotive technician and document analyst specializing in extracting detailed information from vehicle maintenance records, service invoices, and related documents."
+          content: "You are an expert automotive service document analyzer. Your job is to extract comprehensive service information from PDF documents converted to images and return it in a structured format that maps directly to a vehicle service database."
         },
         {
           role: "user",
-          content: `${VEHICLE_DOCUMENT_ANALYSIS_PROMPT}\n\nDocument content:\n${pdfText}`,
-        },
+          content: content
+        }
       ],
       max_tokens: 4096,
       response_format: { type: "json_object" },
     });
 
-    // Parse and transform the response into our application's format
     const rawResult = JSON.parse(response.choices[0]?.message?.content || '{}');
-    return transformAnalysisResult(rawResult);
-  } catch (error) {
+    console.log('Raw OpenAI PDF extraction result:', rawResult);
+    
+    // Transform to our DocumentAnalysisResult format
+    return transformToDocumentAnalysisResult(rawResult);
+  } catch (error: any) {
     console.error('Error analyzing PDF:', error);
-    throw error;
+    // If PDF processing fails, fall back to a simple approach
+    throw new Error(`PDF analysis failed: ${error.message || 'Unknown error'}`);
   }
 };
 
 /**
- * Transforms the raw OpenAI analysis result into our application's expected format
- * @param rawResult - The raw JSON result from OpenAI
- * @returns Formatted result matching our DocumentAnalysisResult type
+ * Converts a single PDF page to a base64 image data URL
  */
-const transformAnalysisResult = (rawResult: any) => {
-  console.log('Transforming raw OpenAI result:', rawResult);
+const convertPdfPageToImage = async (pdf: any, pageNum: number): Promise<string> => {
+  const page = await pdf.getPage(pageNum);
+  const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better quality
   
-  // Extract vehicle information
-  const vehicleInfo = {
-    make: rawResult.vehicle?.make,
-    model: rawResult.vehicle?.model,
-    year: rawResult.vehicle?.year,
-    vin: rawResult.vehicle?.vin,
-    licensePlate: rawResult.vehicle?.license_plate,
-    color: rawResult.vehicle?.color,
-    engine: rawResult.vehicle?.engine,
+  // Create canvas
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  canvas.height = viewport.height;
+  canvas.width = viewport.width;
+  
+  // Render page to canvas
+  const renderContext = {
+    canvasContext: context,
+    viewport: viewport
+  };
+  
+  await page.render(renderContext).promise;
+  
+  // Convert canvas to base64 data URL
+  return canvas.toDataURL('image/png');
+};
+
+/**
+ * Transforms the structured OpenAI result into our DocumentAnalysisResult format
+ */
+const transformToDocumentAnalysisResult = (rawResult: any) => {
+  const serviceRecord = rawResult.service_record || {};
+  const serviceItems = rawResult.service_items || [];
+  const vehicleInfo = rawResult.vehicle_info || {};
+
+  // Create the main service info from the service record
+  const serviceInfo = {
+    serviceDate: serviceRecord.service_date,
+    mileage: serviceRecord.mileage,
+    serviceProvider: serviceRecord.service_provider,
+    totalCost: serviceRecord.total_cost,
+    notes: serviceRecord.notes,
+    items: serviceItems.map((item: any) => ({
+      serviceType: item.service_type,
+      description: item.description,
+      cost: item.cost,
+      partsReplaced: item.parts_replaced,
+      quantity: item.quantity,
+      nextServiceDate: item.next_service_date,
+      nextServiceMileage: item.next_service_mileage,
+    }))
   };
 
-  // Extract maintenance information
-  const maintenanceInfo: any = {
-    serviceDate: rawResult.service_date || rawResult.service_information?.service_date,
-    serviceType: getMainServiceType(rawResult),
-    description: getServiceDescription(rawResult),
-    mileage: getMileage(rawResult),
-    cost: getTotalCost(rawResult),
-    serviceProvider: getServiceProvider(rawResult),
-    partsReplaced: getPartsReplaced(rawResult),
-    notes: rawResult.additional_information?.notes || '',
-    isRecurring: false,
-  };
-
-  // Add next service information if available
-  if (rawResult.additional_information?.recommended_next_service_date) {
-    maintenanceInfo.nextServiceDate = rawResult.additional_information.recommended_next_service_date;
-  }
-  
-  if (rawResult.additional_information?.recommended_next_service_mileage) {
-    maintenanceInfo.nextServiceMileage = rawResult.additional_information.recommended_next_service_mileage;
-  }
-
-  // Return the formatted result with the complete raw data in otherInfo
   const result = {
-    vehicleInfo,
-    maintenanceInfo,
-    otherInfo: rawResult,
+    vehicleInfo: {
+      make: vehicleInfo.make,
+      model: vehicleInfo.model,
+      year: vehicleInfo.year,
+      vin: vehicleInfo.vin,
+      licensePlate: vehicleInfo.license_plate,
+    },
+    serviceInfo,
+    // Store the raw structured result for easy database insertion
+    rawStructuredData: rawResult,
   };
-  
-  console.log('Transformed result:', result);
+
+  console.log('Transformed DocumentAnalysisResult:', result);
   return result;
-};
-
-/**
- * Helper function to get the main service type from the raw result
- */
-const getMainServiceType = (rawResult: any): string => {
-  if (!rawResult.services || !Array.isArray(rawResult.services)) {
-    return rawResult.service_information?.service_type || '';
-  }
-  
-  // Try to determine the main service type from the services array
-  const serviceTypes = rawResult.services.map((s: any) => s.category || s.description).filter(Boolean);
-  if (serviceTypes.length === 0) return '';
-  
-  // If there's only one service or they're all the same type
-  if (serviceTypes.length === 1 || new Set(serviceTypes).size === 1) {
-    return serviceTypes[0];
-  }
-  
-  // If there are multiple types, try to find the most significant one
-  const priorityTypes = ['Oil Change', 'Maintenance', 'Repair', 'Inspection'];
-  for (const type of priorityTypes) {
-    const match = serviceTypes.find((s: string) => s.includes(type));
-    if (match) return match;
-  }
-  
-  // Default to a comma-separated list of service types
-  return serviceTypes.join(', ');
-};
-
-/**
- * Helper function to get a comprehensive service description
- */
-const getServiceDescription = (rawResult: any): string => {
-  if (!rawResult.services || !Array.isArray(rawResult.services)) {
-    return rawResult.service_information?.description || '';
-  }
-  
-  return rawResult.services
-    .map((s: any) => s.description || s.category)
-    .filter(Boolean)
-    .join('; ');
-};
-
-/**
- * Helper function to extract mileage information
- */
-const getMileage = (rawResult: any): number | undefined => {
-  if (rawResult.vehicle?.odometer_km) {
-    return rawResult.vehicle.odometer_km;
-  }
-  
-  if (rawResult.vehicle?.odometer_miles) {
-    return rawResult.vehicle.odometer_miles;
-  }
-  
-  if (rawResult.vehicle?.odometer) {
-    return rawResult.vehicle.odometer;
-  }
-  
-  return undefined;
-};
-
-/**
- * Helper function to calculate the total cost
- */
-const getTotalCost = (rawResult: any): number | undefined => {
-  if (rawResult.payment?.total) {
-    return rawResult.payment.total;
-  }
-  
-  // If there's no total but there are individual service costs
-  if (rawResult.services && Array.isArray(rawResult.services)) {
-    const sum = rawResult.services.reduce((total: number, service: any) => {
-      return total + (service.price || 0);
-    }, 0);
-    return sum > 0 ? sum : undefined;
-  }
-  
-  return undefined;
-};
-
-/**
- * Helper function to get the service provider information
- */
-const getServiceProvider = (rawResult: any): string => {
-  if (rawResult.service_information?.service_provider) {
-    return rawResult.service_information.service_provider;
-  }
-  
-  if (rawResult.service_provider) {
-    return rawResult.service_provider;
-  }
-  
-  if (rawResult.location) {
-    return rawResult.location;
-  }
-  
-  return '';
-};
-
-/**
- * Helper function to extract parts replaced
- */
-const getPartsReplaced = (rawResult: any): string[] => {
-  const parts: string[] = [];
-  
-  // Check if there's a dedicated parts section
-  if (rawResult.parts && Array.isArray(rawResult.parts)) {
-    parts.push(...rawResult.parts.map((p: any) => p.name || p.part_name || p.description));
-  }
-  
-  // Check services for parts information
-  if (rawResult.services && Array.isArray(rawResult.services)) {
-    rawResult.services.forEach((service: any) => {
-      if (service.parts_replaced) {
-        if (Array.isArray(service.parts_replaced)) {
-          parts.push(...service.parts_replaced);
-        } else {
-          parts.push(service.parts_replaced);
-        }
-      }
-      
-      // Check for filter replacements
-      if (service.category?.toLowerCase().includes('filter') || 
-          service.description?.toLowerCase().includes('filter')) {
-        const filterInfo = service.filter_model || service.details?.filter || service.details?.oil_filter;
-        if (filterInfo) parts.push(`Filter: ${filterInfo}`);
-      }
-      
-      // Check for fluid replacements
-      if (service.fluid) {
-        parts.push(`${service.category || 'Fluid'}: ${service.fluid}`);
-      }
-    });
-  }
-  
-  return parts.filter(Boolean);
 };
 
 export default {

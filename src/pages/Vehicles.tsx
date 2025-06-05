@@ -193,11 +193,13 @@ export default function Vehicles() {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl font-bold">My Vehicles</h1>
         <button
-          className="rounded-full bg-blue-600 text-white w-10 h-10 flex items-center justify-center shadow-lg"
+          className="w-8 h-8 flex items-center justify-center rounded-lg shadow-sm border bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
           onClick={() => setAddOpen(true)}
           aria-label="Add Vehicle"
         >
-          <span className="text-2xl">+</span>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
         </button>
       </div>
       {error && <div className="text-red-500 mb-4">{error}</div>}

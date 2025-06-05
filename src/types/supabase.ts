@@ -51,10 +51,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "documents_maintenance_record_id_fkey"
-            columns: ["maintenance_record_id"]
+            foreignKeyName: "documents_service_record_id_fkey"
+            columns: ["service_record_id"]
             isOneToOne: false
-            referencedRelation: "maintenance_records"
+            referencedRelation: "service_records"
             referencedColumns: ["id"]
           },
           {
