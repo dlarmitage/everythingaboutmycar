@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import type { DocumentAnalysisResult } from '../types';
 
 type DocumentUploaderProps = {
-  onAnalysisComplete?: (result: DocumentAnalysisResult, documentId: string) => void;
+  onAnalysisComplete?: (result: DocumentAnalysisResult, documentId: string) => Promise<void>;
   disabled?: boolean;
 };
 
@@ -56,7 +56,7 @@ const DocumentUploader = ({ onAnalysisComplete, disabled = false }: DocumentUplo
       await refreshDocuments();
       
       if (onAnalysisComplete && documentId) {
-        onAnalysisComplete(result, documentId);
+        await onAnalysisComplete(result, documentId);
       }
     } catch (err) {
       console.error('Error analyzing document:', err);

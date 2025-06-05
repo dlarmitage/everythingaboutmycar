@@ -77,6 +77,7 @@ export type Database = {
           mileage: number | null
           total_cost: number | null
           document_url: string | null
+          document_id: string | null
           notes: string | null
         }
         Insert: {
@@ -89,6 +90,7 @@ export type Database = {
           mileage?: number | null
           total_cost?: number | null
           document_url?: string | null
+          document_id?: string | null
           notes?: string | null
         }
         Update: {
@@ -101,6 +103,7 @@ export type Database = {
           mileage?: number | null
           total_cost?: number | null
           document_url?: string | null
+          document_id?: string | null
           notes?: string | null
         }
         Relationships: [

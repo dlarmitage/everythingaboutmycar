@@ -7,7 +7,7 @@ interface AIReceiptTabProps {
   error: string | null;
   extractedRecord: ServiceRecordInsert | null;
   extractedItems: ServiceItemInsert[];
-  onAnalysisComplete: (result: DocumentAnalysisResult, documentId: string) => void;
+  onAnalysisComplete: (result: DocumentAnalysisResult, documentId: string) => Promise<void>;
   onSave: () => Promise<ServiceRecord | null>;
   onReset: () => void;
   disabled?: boolean;

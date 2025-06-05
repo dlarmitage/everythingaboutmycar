@@ -4,9 +4,6 @@ import type { ServiceRecordInsert, ServiceItemInsert, ServiceRecord, ServiceItem
 
 interface ManualServiceRecordFormProps {
   vehicleId: string;
-  onSave: (record: ServiceRecordInsert, items: ServiceItemInsert[]) => void;
-  onCancel: () => void;
-  disabled?: boolean;
   existingRecord?: ServiceRecord | null;
   existingItems?: ServiceItem[] | null;
   onFormDataChange?: (record: ServiceRecordInsert, items: Omit<ServiceItemInsert, 'service_record_id'>[]) => void;
@@ -25,9 +22,6 @@ const newServiceItemId = () => `item_${Date.now()}_${Math.random().toString(36).
 
 export default function ManualServiceRecordForm({ 
   vehicleId, 
-  onSave, 
-  onCancel, 
-  disabled = false,
   existingRecord = null,
   existingItems = null,
   onFormDataChange
@@ -170,6 +164,13 @@ export default function ManualServiceRecordForm({
       <div>
         <div className="flex items-center justify-between mb-2">
           <h4 className="text-sm font-medium text-gray-700">Service Items</h4>
+          <button 
+            onClick={addItem} 
+            type="button"
+            className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            + Add Service Item
+          </button>
         </div>
         
         {/* Service Items List */}
@@ -202,7 +203,7 @@ export default function ManualServiceRecordForm({
                   {serviceItems.length > 1 && (
                     <button 
                       onClick={() => removeItem(index)} 
-                      className="p-2 text-gray-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded-md"
+                      className="p-2 text-gray-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 focus:ring-offset-2 rounded-md"
                       title="Remove service item"
                     >
                       <span className="sr-only">Remove service item</span>
@@ -253,14 +254,6 @@ export default function ManualServiceRecordForm({
           ))}
         </div>
       </div>
-
-      <button 
-        onClick={addItem} 
-        type="button"
-        className="mb-6 text-sm text-blue-600 hover:text-blue-800 font-medium py-1 px-3 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
-      >
-        + Add Service Item
-      </button>
     </div>
   );
 }

@@ -70,7 +70,7 @@ export default function useAIExtraction({ onSaveServiceRecord }: UseAIExtraction
   const [isSaving, setIsSaving] = useState(false);
   
   // Handle document analysis completion
-  const handleAnalysisComplete = (analysisResult: DocumentAnalysisResult, documentId: string) => {
+  const handleAnalysisComplete = async (analysisResult: DocumentAnalysisResult, documentId: string) => {
     setIsProcessing(false);
     
     if (!analysisResult) {
@@ -99,6 +99,7 @@ export default function useAIExtraction({ onSaveServiceRecord }: UseAIExtraction
           service_provider: rawData.service_record.service_provider || '',
           total_cost: rawData.service_record.total_cost || null,
           notes: rawData.service_record.notes || '',
+          document_id: documentId, // Link to the uploaded document
         };
         
         // Create service items from the structured data
@@ -174,6 +175,7 @@ export default function useAIExtraction({ onSaveServiceRecord }: UseAIExtraction
         service_provider: serviceProvider,
         total_cost: totalCost,
         notes: notes,
+        document_id: documentId, // Link to the uploaded document
       };
       
       // Create service items from AI data

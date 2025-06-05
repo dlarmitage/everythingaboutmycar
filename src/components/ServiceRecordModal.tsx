@@ -1,12 +1,13 @@
 import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, TrashIcon, DocumentIcon } from '@heroicons/react/24/outline';
 import ManualServiceRecordForm from './ManualServiceRecordForm';
 import AIReceiptTab from './AIReceiptTab';
 import TabNavigation from './TabNavigation';
 import type { ServiceRecordInsert, ServiceItemInsert, ServiceRecord, ServiceItem } from '../types';
 import { getServiceRecordById, getServiceItemsByRecordId, deleteServiceRecord } from '../services/serviceRecordService';
 import useAIExtraction from '../hooks/useAIExtraction';
+import { supabase } from '../services/supabase';
 
 type TabView = 'manual' | 'ai';
 
@@ -38,6 +39,7 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
     record: ServiceRecordInsert;
     items: Omit<ServiceItemInsert, 'service_record_id'>[];
   } | null>(null);
+  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
 
   // Use our custom hook for AI extraction functionality
   const {
@@ -187,6 +189,35 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
     }
   }, [open, vehicleId]);
   
+  // Fetch document URL when modal opens and there's a document_id
+  useEffect(() => {
+    const fetchDocumentUrl = async () => {
+      if (open && existingRecord?.document_id) {
+        try {
+          const { data, error } = await supabase
+            .from('documents')
+            .select('file_url')
+            .eq('id', existingRecord.document_id)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching document URL:', error);
+            setDocumentUrl(null);
+          } else {
+            setDocumentUrl(data?.file_url || null);
+          }
+        } catch (err) {
+          console.error('Error fetching document URL:', err);
+          setDocumentUrl(null);
+        }
+      } else {
+        setDocumentUrl(null);
+      }
+    };
+    
+    fetchDocumentUrl();
+  }, [open, existingRecord?.document_id]);
+
   // Function to compare form data for changes
   const hasFormDataChanged = (
     current: { record: ServiceRecordInsert; items: Omit<ServiceItemInsert, 'service_record_id'>[] },
@@ -282,6 +313,12 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
     setShowDeleteConfirm(true);
   };
 
+  const handleShowDocument = () => {
+    if (documentUrl) {
+      window.open(documentUrl, '_blank');
+    }
+  };
+
   // Handle delete confirmation
   const handleDeleteConfirm = async () => {
     if (!serviceRecordId) return;
@@ -315,7 +352,7 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
   return (
     <>
       <Transition.Root show={open} as={Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={handleClose}>
+        <Dialog as="div" className="relative z-50" onClose={() => {}}>
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
@@ -338,7 +375,7 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
                 leaveFrom="opacity-100 translate-y-0 sm:scale-100"
                 leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
               >
-                <Dialog.Panel className="relative bg-white rounded-lg px-4 pt-5 pb-4 text-left shadow-xl transform transition-all w-full max-w-3xl">
+                <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white px-4 pt-5 pb-4 text-left shadow-xl transition-all w-full max-w-3xl">
                   <div className="flex justify-between items-center mb-4">
                     <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">
                       {serviceRecordId ? 'Edit Service Record' : 'Add Service Record'}
@@ -386,9 +423,6 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
                       ) : (
                         <ManualServiceRecordForm 
                           vehicleId={vehicleId} 
-                          onSave={onSaveManualRecords} 
-                          onCancel={() => {}} 
-                          disabled={isSaving || noVehicleError}
                           existingRecord={existingRecord}
                           existingItems={existingItems}
                           onFormDataChange={handleFormDataChange}
@@ -413,7 +447,24 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
                   
                   {/* Footer with discrete delete button for existing records */}
                   {serviceRecordId && (
-                    <div className="flex justify-end pt-4 mt-4 border-t border-gray-200">
+                    <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-200">
+                      {/* Show Document button (left side) */}
+                      {documentUrl && (
+                        <button
+                          type="button"
+                          onClick={handleShowDocument}
+                          className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                          title="View document"
+                        >
+                          <DocumentIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+                          Show Document
+                        </button>
+                      )}
+                      
+                      {/* Spacer div when no document */}
+                      {!documentUrl && <div></div>}
+                      
+                      {/* Delete button (right side) */}
                       <button
                         type="button"
                         onClick={handleDeleteClick}
