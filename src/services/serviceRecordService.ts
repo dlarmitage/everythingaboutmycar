@@ -142,13 +142,61 @@ export const getServiceItems = async (serviceRecordId: string): Promise<ServiceI
 };
 
 /**
- * Delete a service record and its associated service items
+ * Delete a service record and its associated service items and documents
  * @param serviceRecordId The ID of the service record to delete
  * @returns true if successful, false otherwise
  */
 export const deleteServiceRecord = async (serviceRecordId: string): Promise<boolean> => {
   try {
-    // Service items will be deleted automatically due to the ON DELETE CASCADE constraint
+    // First, get all documents associated with this service record
+    const { data: documents, error: documentsError } = await supabase
+      .from('documents')
+      .select('id, file_url')
+      .eq('service_record_id', serviceRecordId);
+
+    if (documentsError) {
+      console.error('Error fetching documents for service record:', documentsError);
+      return false;
+    }
+
+    // Delete document files from storage and database records
+    if (documents && documents.length > 0) {
+      for (const document of documents) {
+        // Extract file path from URL for storage deletion
+        if (document.file_url) {
+          try {
+            const url = new URL(document.file_url);
+            const pathParts = url.pathname.split('/');
+            const fileName = pathParts[pathParts.length - 1];
+            
+            // Delete file from storage
+            const { error: storageError } = await supabase.storage
+              .from('documents')
+              .remove([fileName]);
+              
+            if (storageError) {
+              console.warn('Warning: Could not delete file from storage:', storageError);
+              // Continue with deletion even if storage deletion fails
+            }
+          } catch (urlError) {
+            console.warn('Warning: Could not parse document URL for storage deletion:', urlError);
+          }
+        }
+
+        // Delete document record from database
+        const { error: deleteDocError } = await supabase
+          .from('documents')
+          .delete()
+          .eq('id', document.id);
+
+        if (deleteDocError) {
+          console.error('Error deleting document record:', deleteDocError);
+          return false;
+        }
+      }
+    }
+
+    // Now delete the service record (service items will be deleted automatically due to CASCADE)
     const { error } = await supabase
       .from('service_records')
       .delete()
@@ -159,6 +207,7 @@ export const deleteServiceRecord = async (serviceRecordId: string): Promise<bool
       return false;
     }
 
+    console.log(`Successfully deleted service record ${serviceRecordId} and ${documents?.length || 0} associated documents`);
     return true;
   } catch (error) {
     console.error('Exception deleting service record:', error);

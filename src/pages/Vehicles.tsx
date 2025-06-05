@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useApp } from '../context/AppContext';
 import { createServiceRecord } from '../services/serviceRecordService';
-import type { Vehicle, ServiceRecordInsert, ServiceItemInsert } from '../types';
+import type { Vehicle, ServiceRecordInsert, ServiceItemInsert, ServiceRecord } from '../types';
 
 
 export default function Vehicles() {
@@ -129,22 +129,22 @@ export default function Vehicles() {
   const handleSaveManualServiceRecords = async (
     serviceRecord: ServiceRecordInsert,
     serviceItems: ServiceItemInsert[]
-  ) => {
+  ): Promise<ServiceRecord | null> => {
     if (!user || !currentVehicleIdForService) {
       setError('User or Vehicle ID is missing. Cannot save service records.');
-      return;
+      return null;
     }
     
     // Validate service items
     if (!serviceItems.length) {
       setError('At least one service item is required');
-      return;
+      return null;
     }
     
     // Check for required fields
     if (!serviceRecord.service_date) {
       setError('Service date is required');
-      return;
+      return null;
     }
     
     setLoading(true);
@@ -180,9 +180,13 @@ export default function Vehicles() {
       
       // Close the modal only on success
       handleCloseServiceRecordModal();
+      
+      // Return the created record
+      return result.record;
     } catch (err: any) {
       setError(err.message || 'Error saving service record');
       console.error('Error saving service record:', err);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -237,6 +241,15 @@ export default function Vehicles() {
           onClose={handleCloseServiceRecordModal}
           vehicleId={currentVehicleIdForService}
           onSaveManualRecords={handleSaveManualServiceRecords}
+          onDelete={async (serviceRecordId) => {
+            try {
+              // Close the modal after successful deletion
+              handleCloseServiceRecordModal();
+              // Note: Vehicle list doesn't need refresh since service records are not displayed here
+            } catch (error) {
+              console.error('Error after service record deletion:', error);
+            }
+          }}
         />
       )}
     </div>

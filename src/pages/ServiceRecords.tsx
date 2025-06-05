@@ -197,6 +197,18 @@ export default function ServiceRecords() {
               return Promise.reject(error);
             }
           }}
+          onDelete={async (serviceRecordId) => {
+            try {
+              // Refresh service records after successful deletion
+              if (typeof refreshServiceRecords === 'function') {
+                await refreshServiceRecords();
+              }
+              setModalOpen(false);
+              setSelectedServiceRecordId(null);
+            } catch (error) {
+              console.error('Error after service record deletion:', error);
+            }
+          }}
         />
       )}
     </div>
