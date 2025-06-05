@@ -1,5 +1,6 @@
-import { Dialog, Transition } from '@headlessui/react';
 import { Fragment, useState, useEffect } from 'react';
+import { Dialog, Transition } from '@headlessui/react';
+import { XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
 import ManualServiceRecordForm from './ManualServiceRecordForm';
 import AIReceiptTab from './AIReceiptTab';
 import TabNavigation from './TabNavigation';
@@ -27,7 +28,17 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
   const [existingItems, setExistingItems] = useState<ServiceItem[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<{
+    record: ServiceRecordInsert;
+    items: Omit<ServiceItemInsert, 'service_record_id'>[];
+  } | null>(null);
+  const [originalFormData, setOriginalFormData] = useState<{
+    record: ServiceRecordInsert;
+    items: Omit<ServiceItemInsert, 'service_record_id'>[];
+  } | null>(null);
+
   // Use our custom hook for AI extraction functionality
   const {
     isProcessing: isAIProcessing,
@@ -66,20 +77,109 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
     fetchExistingData();
   }, [serviceRecordId, open]);
   
-  // Reset state when modal closes
+  // Reset state when modal opens/closes
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setHasUnsavedChanges(false);
+      setShowUnsavedChangesDialog(false);
+      setPendingFormData(null);
+      setOriginalFormData(null);
+      setSelectedTab(serviceRecordId ? 'manual' : 'ai');
+    } else {
+      // Reset all state when modal closes
+      setHasUnsavedChanges(false);
+      setShowUnsavedChangesDialog(false);
+      setPendingFormData(null);
+      setOriginalFormData(null);
+      resetExtractedData();
       setExistingRecord(null);
       setExistingItems([]);
       setSaveError(null);
-      setNoVehicleError(false);
-      resetExtractedData();
-    } else {
-      // Reset tab selection when modal opens
-      setSelectedTab(serviceRecordId ? 'manual' : 'ai');
+      setSelectedTab('manual');
     }
-  }, [open, resetExtractedData, serviceRecordId]);
-  
+  }, [open, resetExtractedData]);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (open) {
+      // Save current scroll position and lock body
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+      
+      // Prevent wheel events on the document
+      const preventScroll = (e: WheelEvent) => {
+        // Only prevent scroll if the target is not within the modal content
+        const target = e.target as Element;
+        const modalPanel = document.querySelector('[role="dialog"]');
+        if (modalPanel && !modalPanel.contains(target)) {
+          e.preventDefault();
+        }
+      };
+      
+      const preventTouch = (e: TouchEvent) => {
+        // Only prevent touch if the target is not within the modal content
+        const target = e.target as Element;
+        const modalPanel = document.querySelector('[role="dialog"]');
+        if (modalPanel && !modalPanel.contains(target)) {
+          e.preventDefault();
+        }
+      };
+      
+      document.addEventListener('wheel', preventScroll, { passive: false });
+      document.addEventListener('touchmove', preventTouch, { passive: false });
+      
+      // Store the cleanup function
+      const cleanup = () => {
+        document.removeEventListener('wheel', preventScroll);
+        document.removeEventListener('touchmove', preventTouch);
+      };
+      
+      return cleanup;
+    } else {
+      // Restore scroll position and unlock body
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      }
+    }
+  }, [open]);
+
+  // Set original form data when existing data is loaded
+  useEffect(() => {
+    if (existingRecord && existingItems && existingItems.length > 0) {
+      const originalRecord: ServiceRecordInsert = {
+        vehicle_id: existingRecord.vehicle_id,
+        service_date: existingRecord.service_date,
+        service_provider: existingRecord.service_provider,
+        mileage: existingRecord.mileage,
+        total_cost: existingRecord.total_cost,
+        notes: existingRecord.notes,
+        document_url: existingRecord.document_url,
+        id: existingRecord.id
+      };
+      
+      const originalItems: Omit<ServiceItemInsert, 'service_record_id'>[] = existingItems.map(item => ({
+        id: item.id,
+        service_type: item.service_type,
+        description: item.description,
+        cost: item.cost,
+        parts_replaced: item.parts_replaced,
+        quantity: item.quantity,
+        next_service_date: item.next_service_date,
+        next_service_mileage: item.next_service_mileage
+      }));
+      
+      setOriginalFormData({ record: originalRecord, items: originalItems });
+    }
+  }, [existingRecord, existingItems]);
+
   // Check if vehicle is selected
   useEffect(() => {
     if (open) {
@@ -87,9 +187,94 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
     }
   }, [open, vehicleId]);
   
-  // Handle modal close
+  // Function to compare form data for changes
+  const hasFormDataChanged = (
+    current: { record: ServiceRecordInsert; items: Omit<ServiceItemInsert, 'service_record_id'>[] },
+    original: { record: ServiceRecordInsert; items: Omit<ServiceItemInsert, 'service_record_id'>[] } | null
+  ): boolean => {
+    if (!original) return true; // If no original data, consider it changed
+    
+    // Compare record fields
+    const recordChanged = (
+      current.record.service_date !== original.record.service_date ||
+      current.record.service_provider !== original.record.service_provider ||
+      current.record.mileage !== original.record.mileage ||
+      current.record.total_cost !== original.record.total_cost
+    );
+    
+    if (recordChanged) return true;
+    
+    // Compare items count
+    if (current.items.length !== original.items.length) return true;
+    
+    // Compare each item
+    for (let i = 0; i < current.items.length; i++) {
+      const currentItem = current.items[i];
+      const originalItem = original.items[i];
+      
+      if (
+        currentItem.service_type !== originalItem.service_type ||
+        currentItem.description !== originalItem.description ||
+        currentItem.cost !== originalItem.cost ||
+        JSON.stringify(currentItem.parts_replaced) !== JSON.stringify(originalItem.parts_replaced) ||
+        currentItem.quantity !== originalItem.quantity ||
+        currentItem.next_service_date !== originalItem.next_service_date ||
+        currentItem.next_service_mileage !== originalItem.next_service_mileage
+      ) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  // Handle modal close with auto-save
   const handleClose = () => {
+    if (hasUnsavedChanges && pendingFormData) {
+      setShowUnsavedChangesDialog(true);
+    } else {
+      onClose();
+    }
+  };
+
+  // Handle saving pending changes
+  const handleSavePendingChanges = async () => {
+    if (pendingFormData) {
+      try {
+        // Convert items back to ServiceItemInsert by adding empty service_record_id
+        const itemsWithRecordId: ServiceItemInsert[] = pendingFormData.items.map(item => ({
+          ...item,
+          service_record_id: '' // This will be set by the service when saving
+        }));
+        await onSaveManualRecords(pendingFormData.record, itemsWithRecordId);
+        setHasUnsavedChanges(false);
+        setPendingFormData(null);
+        setShowUnsavedChangesDialog(false);
+        onClose();
+      } catch (error) {
+        console.error('Error saving changes:', error);
+        setSaveError('Failed to save changes');
+        setShowUnsavedChangesDialog(false);
+      }
+    }
+  };
+
+  // Handle discarding changes
+  const handleDiscardChanges = () => {
+    setHasUnsavedChanges(false);
+    setPendingFormData(null);
+    setShowUnsavedChangesDialog(false);
     onClose();
+  };
+
+  // Handle form data changes from ManualServiceRecordForm
+  const handleFormDataChange = (record: ServiceRecordInsert, items: Omit<ServiceItemInsert, 'service_record_id'>[]) => {
+    const currentData = { record, items };
+    setPendingFormData(currentData);
+    
+    // Check if data has actually changed from original
+    const hasChanged = hasFormDataChanged(currentData, originalFormData);
+    setHasUnsavedChanges(hasChanged);
   };
 
   // Handle delete confirmation
@@ -159,32 +344,15 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
                       {serviceRecordId ? 'Edit Service Record' : 'Add Service Record'}
                     </Dialog.Title>
                     
-                    {/* Delete button - only show when editing existing record */}
-                    {serviceRecordId && (
-                      <button
-                        type="button"
-                        onClick={handleDeleteClick}
-                        disabled={isDeleting}
-                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isDeleting ? (
-                          <>
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-red-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Deleting...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="-ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            Delete
-                          </>
-                        )}
-                      </button>
-                    )}
+                    {/* Close button (X) in upper right */}
+                    <button
+                      type="button"
+                      onClick={handleClose}
+                      className="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    >
+                      <span className="sr-only">Close</span>
+                      <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                    </button>
                   </div>
                   
                   {(saveError || noVehicleError) && (
@@ -219,10 +387,11 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
                         <ManualServiceRecordForm 
                           vehicleId={vehicleId} 
                           onSave={onSaveManualRecords} 
-                          onCancel={handleClose}
+                          onCancel={() => {}} 
                           disabled={isSaving || noVehicleError}
                           existingRecord={existingRecord}
                           existingItems={existingItems}
+                          onFormDataChange={handleFormDataChange}
                         />
                       )
                     )}
@@ -241,6 +410,28 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
                       />
                     )}
                   </div>
+                  
+                  {/* Footer with discrete delete button for existing records */}
+                  {serviceRecordId && (
+                    <div className="flex justify-end pt-4 mt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={handleDeleteClick}
+                        disabled={isDeleting}
+                        className="inline-flex items-center justify-center w-10 h-10 text-gray-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Delete service record"
+                      >
+                        {isDeleting ? (
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <TrashIcon className="h-5 w-5" aria-hidden="true" />
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </Dialog.Panel>
               </Transition.Child>
             </div>
@@ -295,7 +486,7 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
                   <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
                     <button
                       type="button"
-                      className="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm"
                       onClick={handleDeleteConfirm}
                       disabled={isDeleting}
                     >
@@ -308,6 +499,73 @@ export default function ServiceRecordModal({ open, onClose, vehicleId, serviceRe
                       disabled={isDeleting}
                     >
                       Cancel
+                    </button>
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition.Root>
+
+      {/* Unsaved Changes Dialog */}
+      <Transition.Root show={showUnsavedChangesDialog} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={handleDiscardChanges}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 z-10 overflow-y-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                enterTo="opacity-100 translate-y-0 sm:scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 translate-y-0 sm:scale-100"
+                leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+              >
+                <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white px-4 pt-5 pb-4 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:mx-0 sm:h-10 sm:w-10">
+                      <svg className="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                      <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">
+                        Unsaved Changes
+                      </Dialog.Title>
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500">
+                          You have unsaved changes. Do you want to save them before closing?
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                    <button
+                      type="button"
+                      className="inline-flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm"
+                      onClick={handleSavePendingChanges}
+                    >
+                      Save Changes
+                    </button>
+                    <button
+                      type="button"
+                      className="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:mt-0 sm:w-auto sm:text-sm"
+                      onClick={handleDiscardChanges}
+                    >
+                      Discard Changes
                     </button>
                   </div>
                 </Dialog.Panel>

@@ -1,5 +1,6 @@
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment, useState, useEffect } from 'react';
+import { XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
 import type { Vehicle } from '../types';
 
 interface VehicleDetailsModalProps {
@@ -13,42 +14,68 @@ interface VehicleDetailsModalProps {
 export default function VehicleDetailsModal({ open, vehicle, onClose, onSave, onDelete }: VehicleDetailsModalProps) {
   const [form, setForm] = useState<Vehicle | null>(vehicle);
   const [dirty, setDirty] = useState(false);
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [originalVehicle, setOriginalVehicle] = useState<Vehicle | null>(null);
+  const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
 
   // Keep form in sync with vehicle prop
   useEffect(() => {
     setForm(vehicle);
+    setOriginalVehicle(vehicle);
     setDirty(false);
   }, [vehicle, open]);
 
-  // Track edits
+  // Function to compare vehicle data for changes
+  const hasVehicleChanged = (current: Vehicle | null, original: Vehicle | null): boolean => {
+    if (!current || !original) return false;
+    
+    return (
+      current.year !== original.year ||
+      current.make !== original.make ||
+      current.model !== original.model ||
+      current.body_class !== original.body_class ||
+      current.vin !== original.vin ||
+      current.color !== original.color ||
+      current.license_plate !== original.license_plate ||
+      current.mileage !== original.mileage ||
+      current.purchase_date !== original.purchase_date ||
+      current.purchase_price !== original.purchase_price
+    );
+  };
+
+  // Track edits with proper change detection
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!form) return;
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
-    setDirty(true);
+    const updatedForm = { ...form, [name]: value };
+    setForm(updatedForm);
+    
+    // Check if data has actually changed from original
+    const hasChanged = hasVehicleChanged(updatedForm, originalVehicle);
+    setDirty(hasChanged);
   };
 
-  // Handle Save
-  const handleSave = () => {
-    if (form) {
-      onSave(form);
-      setDirty(false);
-    }
-  };
-
-  // Handle Cancel/Close
-  const handleCancel = () => {
-    if (dirty) {
-      setConfirmDiscard(true);
+  // Handle auto-save on close
+  const handleClose = () => {
+    if (dirty && form) {
+      setShowUnsavedChangesDialog(true);
     } else {
       onClose();
     }
   };
 
-  // Confirm discard edits
-  const confirmClose = () => {
-    setConfirmDiscard(false);
+  // Handle saving pending changes
+  const handleSavePendingChanges = () => {
+    if (form) {
+      onSave(form);
+      setDirty(false);
+    }
+    setShowUnsavedChangesDialog(false);
+    onClose();
+  };
+
+  // Handle discarding changes
+  const handleDiscardChanges = () => {
+    setShowUnsavedChangesDialog(false);
     setDirty(false);
     onClose();
   };
@@ -58,7 +85,7 @@ export default function VehicleDetailsModal({ open, vehicle, onClose, onSave, on
   return (
     <>
       <Transition.Root show={open} as={Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={handleCancel}>
+        <Dialog as="div" className="relative z-50" onClose={handleClose}>
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
@@ -82,17 +109,21 @@ export default function VehicleDetailsModal({ open, vehicle, onClose, onSave, on
                 leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
               >
                 <Dialog.Panel className="relative bg-white rounded-lg px-4 pt-5 pb-4 text-left shadow-xl transform transition-all w-full max-w-lg">
-                  {/* Close X */}
-                  <button
-                    className="absolute right-4 top-4 text-gray-400 hover:text-gray-700"
-                    onClick={handleCancel}
-                    aria-label="Close"
-                  >
-                    <span className="text-2xl">&times;</span>
-                  </button>
-                  <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 mb-4">
-                    Vehicle Details
-                  </Dialog.Title>
+                  <div className="flex justify-between items-center mb-4">
+                    <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">
+                      Vehicle Details
+                    </Dialog.Title>
+                    
+                    {/* Close button (X) in upper right */}
+                    <button
+                      type="button"
+                      onClick={handleClose}
+                      className="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    >
+                      <span className="sr-only">Close</span>
+                      <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                    </button>
+                  </div>
                   <form className="flex flex-col gap-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -138,25 +169,17 @@ export default function VehicleDetailsModal({ open, vehicle, onClose, onSave, on
                       
                     </div>
                   </form>
-                  <div className="flex justify-between gap-2 mt-6">
+                  
+                  {/* Footer with discrete delete button */}
+                  <div className="flex justify-end mt-6">
                     <button
-                      className="flex-1 py-2 rounded bg-blue-600 text-white font-bold disabled:opacity-60"
-                      onClick={handleSave}
-                      disabled={!dirty}
-                    >
-                      Save
-                    </button>
-                    <button
-                      className="flex-1 py-2 rounded bg-gray-200 text-gray-800 font-bold"
-                      onClick={handleCancel}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="flex-1 py-2 rounded bg-red-600 text-white font-bold"
+                      type="button"
                       onClick={() => onDelete(form)}
+                      className="p-2 text-gray-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded-md"
+                      title="Delete vehicle"
                     >
-                      Delete
+                      <span className="sr-only">Delete vehicle</span>
+                      <TrashIcon className="h-5 w-5" aria-hidden="true" />
                     </button>
                   </div>
                 </Dialog.Panel>
@@ -165,9 +188,9 @@ export default function VehicleDetailsModal({ open, vehicle, onClose, onSave, on
           </div>
         </Dialog>
       </Transition.Root>
-      {/* Discard edits confirm dialog */}
-      <Transition.Root show={confirmDiscard} as={Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={() => setConfirmDiscard(false)}>
+      {/* Unsaved changes confirm dialog */}
+      <Transition.Root show={showUnsavedChangesDialog} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setShowUnsavedChangesDialog(false)}>
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
@@ -192,15 +215,15 @@ export default function VehicleDetailsModal({ open, vehicle, onClose, onSave, on
               >
                 <Dialog.Panel className="relative bg-white rounded-lg px-6 py-6 text-left shadow-xl max-w-sm w-full">
                   <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 mb-4">
-                    Discard changes?
+                    Unsaved changes
                   </Dialog.Title>
-                  <div className="mb-6">You have unsaved changes. Are you sure you want to discard them?</div>
+                  <div className="mb-6">You have unsaved changes. Do you want to save them before closing?</div>
                   <div className="flex gap-2 justify-end">
-                    <button className="py-2 px-4 rounded bg-gray-200 text-gray-800 font-bold" onClick={() => setConfirmDiscard(false)}>
-                      Keep Editing
-                    </button>
-                    <button className="py-2 px-4 rounded bg-red-600 text-white font-bold" onClick={confirmClose}>
+                    <button className="py-2 px-4 rounded bg-gray-200 text-gray-800 font-bold" onClick={handleDiscardChanges}>
                       Discard
+                    </button>
+                    <button className="py-2 px-4 rounded bg-blue-600 text-white font-bold" onClick={handleSavePendingChanges}>
+                      Save
                     </button>
                   </div>
                 </Dialog.Panel>
