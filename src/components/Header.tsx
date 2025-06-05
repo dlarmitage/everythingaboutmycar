@@ -2,11 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/useApp';
 import { supabase } from '../services/supabase';
+import ProfileModal from './ProfileModal';
 
 const Header = () => {
   const { user, setUser } = useApp();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -35,7 +37,7 @@ const Header = () => {
 
   const handleEditProfile = () => {
     setIsMenuOpen(false);
-    navigate('/profile');
+    setIsProfileModalOpen(true);
   };
 
   const getInitials = (firstName?: string | null, lastName?: string | null): string => {
@@ -157,6 +159,10 @@ const Header = () => {
           </div>
         </div>
       </div>
+      <ProfileModal 
+        open={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)}
+      />
     </header>
   );
 };

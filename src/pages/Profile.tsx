@@ -6,7 +6,8 @@ import { useApp } from '../context/AppContext';
 interface UserProfile {
   id: string;
   email: string;
-  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
   avatar_url: string | null;
   phone_number: string | null;
   preferred_units: 'imperial' | 'metric';
@@ -22,7 +23,7 @@ interface UserProfile {
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { user, setUser } = useApp();
+  const { user } = useApp();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +34,8 @@ const Profile = () => {
   const [profile, setProfile] = useState<UserProfile>({
     id: '',
     email: '',
-    full_name: '',
+    first_name: null,
+    last_name: null,
     avatar_url: null,
     phone_number: null,
     preferred_units: 'imperial',
@@ -60,26 +62,42 @@ const Profile = () => {
       setLoading(true);
       setError(null);
 
+      if (!user?.id) {
+        throw new Error('User ID is required');
+      }
+
       // Get user profile from profiles table
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user?.id)
+        .eq('id', user.id)
         .single();
 
       if (error) throw error;
 
       if (data) {
-        setProfile({
-          ...data,
-          email: user?.email || '',
-          notification_preferences: data.notification_preferences || {
+        // Type assertion for notification_preferences since it comes from Json type
+        const notificationPrefs = typeof data.notification_preferences === 'object' && 
+          data.notification_preferences !== null ? 
+          data.notification_preferences as {
+            email: boolean;
+            push: boolean;
+            maintenance_reminders: boolean;
+            recall_alerts: boolean;
+            document_expiration: boolean;
+          } : {
             email: true,
             push: true,
             maintenance_reminders: true,
             recall_alerts: true,
             document_expiration: true,
-          },
+          };
+
+        setProfile({
+          ...data,
+          email: user?.email || '',
+          preferred_units: (data.preferred_units as 'imperial' | 'metric') || 'imperial',
+          notification_preferences: notificationPrefs,
         });
         
         // Set avatar preview if exists
@@ -143,14 +161,14 @@ const Profile = () => {
       const filePath = `avatars/${fileName}`;
       
       const { error: uploadError } = await supabase.storage
-        .from('user-avatars')
+        .from('documents')
         .upload(filePath, avatarFile);
         
       if (uploadError) throw uploadError;
       
       // Get public URL
       const { data } = supabase.storage
-        .from('user-avatars')
+        .from('documents')
         .getPublicUrl(filePath);
         
       return data.publicUrl;
@@ -187,7 +205,8 @@ const Profile = () => {
       const { error } = await supabase
         .from('profiles')
         .update({
-          full_name: profile.full_name,
+          first_name: profile.first_name,
+          last_name: profile.last_name,
           avatar_url: avatarUrl,
           phone_number: profile.phone_number,
           preferred_units: profile.preferred_units,
@@ -197,16 +216,6 @@ const Profile = () => {
         .eq('id', user.id);
         
       if (error) throw error;
-      
-      // Update local user state
-      setUser({
-        ...user,
-        user_metadata: {
-          ...user.user_metadata,
-          full_name: profile.full_name,
-          avatar_url: avatarUrl,
-        },
-      });
       
       setSuccess('Profile updated successfully');
       
@@ -391,17 +400,36 @@ const Profile = () => {
 
                 <div className="sm:col-span-2">
                   <label
-                    htmlFor="full_name"
+                    htmlFor="first_name"
                     className="block text-sm font-medium leading-6 text-gray-900"
                   >
-                    Full Name
+                    First Name
                   </label>
                   <div className="mt-2">
                     <input
                       type="text"
-                      id="full_name"
-                      name="full_name"
-                      value={profile.full_name || ''}
+                      id="first_name"
+                      name="first_name"
+                      value={profile.first_name || ''}
+                      onChange={handleInputChange}
+                      className="form-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label
+                    htmlFor="last_name"
+                    className="block text-sm font-medium leading-6 text-gray-900"
+                  >
+                    Last Name
+                  </label>
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      id="last_name"
+                      name="last_name"
+                      value={profile.last_name || ''}
                       onChange={handleInputChange}
                       className="form-input"
                     />

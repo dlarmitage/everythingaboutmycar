@@ -12,7 +12,6 @@ import { useApp } from './context/useApp';
 // Lazy load pages for better performance
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
-const Profile = lazy(() => import('./pages/Profile'));
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -85,13 +84,6 @@ function AppRoutes() {
         <Route path="/recalls" element={
           <ProtectedRoute>
             <Recalls />
-          </ProtectedRoute>
-        } />
-        <Route path="/profile" element={
-          <ProtectedRoute>
-            <Suspense fallback={<LoadingFallback />}>
-              <Profile />
-            </Suspense>
           </ProtectedRoute>
         } />
       </Route>

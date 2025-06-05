@@ -240,6 +240,8 @@ export type Database = {
           id: string
           last_name: string | null
           notification_preferences: Json
+          phone_number: string | null
+          preferred_units: string | null
           updated_at: string
         }
         Insert: {
@@ -250,6 +252,8 @@ export type Database = {
           id: string
           last_name?: string | null
           notification_preferences?: Json
+          phone_number?: string | null
+          preferred_units?: string | null
           updated_at?: string
         }
         Update: {
@@ -260,6 +264,8 @@ export type Database = {
           id?: string
           last_name?: string | null
           notification_preferences?: Json
+          phone_number?: string | null
+          preferred_units?: string | null
           updated_at?: string
         }
         Relationships: []
