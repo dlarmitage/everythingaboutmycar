@@ -1,48 +1,111 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import MobileLayout from './layouts/MobileLayout';
 import Vehicles from './pages/Vehicles';
 import ServiceRecords from './pages/ServiceRecords';
 import Maintenance from './pages/Maintenance';
 import Recalls from './pages/Recalls';
 import { VehicleProvider } from './context/VehicleContext';
+import { useApp } from './context/useApp';
 
 // Lazy load pages for better performance
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const DocumentUpload = lazy(() => import('./pages/DocumentUpload'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
-const VehicleList = lazy(() => import('./pages/VehicleList'));
-const VehicleDetail = lazy(() => import('./pages/VehicleDetail'));
-const VehicleForm = lazy(() => import('./pages/VehicleForm'));
-const MaintenanceList = lazy(() => import('./pages/MaintenanceList'));
-const MaintenanceForm = lazy(() => import('./pages/MaintenanceForm'));
-const DocumentList = lazy(() => import('./pages/DocumentList'));
-const RecallList = lazy(() => import('./pages/RecallList'));
-const RecallForm = lazy(() => import('./pages/RecallForm'));
 const Profile = lazy(() => import('./pages/Profile'));
-const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Loading fallback
 const LoadingFallback = () => (
   <div className="flex justify-center items-center h-64">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
   </div>
 );
+
+// Protected route component
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, isLoading } = useApp();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate('/login');
+    }
+  }, [user, isLoading, navigate]);
+  
+  if (isLoading) {
+    return <LoadingFallback />;
+  }
+  
+  return user ? <>{children}</> : <LoadingFallback />;
+};
+
+function AppRoutes() {
+  const { user, isLoading } = useApp();
+  
+  if (isLoading) {
+    return <LoadingFallback />;
+  }
+  
+  return (
+    <Routes>
+      {/* Auth routes */}
+      <Route path="/login" element={
+        <Suspense fallback={<LoadingFallback />}>
+          {user ? <Navigate to="/vehicles" replace /> : <Login />}
+        </Suspense>
+      } />
+      <Route path="/register" element={
+        <Suspense fallback={<LoadingFallback />}>
+          {user ? <Navigate to="/vehicles" replace /> : <Register />}
+        </Suspense>
+      } />
+      
+      {/* Protected routes */}
+      <Route element={<MobileLayout />}>
+        <Route path="/vehicles" element={
+          <ProtectedRoute>
+            <Vehicles />
+          </ProtectedRoute>
+        } />
+        <Route path="/service-records" element={
+          <ProtectedRoute>
+            <ServiceRecords />
+          </ProtectedRoute>
+        } />
+        <Route path="/maintenance" element={
+          <ProtectedRoute>
+            <Maintenance />
+          </ProtectedRoute>
+        } />
+        <Route path="/recalls" element={
+          <ProtectedRoute>
+            <Recalls />
+          </ProtectedRoute>
+        } />
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <Suspense fallback={<LoadingFallback />}>
+              <Profile />
+            </Suspense>
+          </ProtectedRoute>
+        } />
+      </Route>
+      
+      {/* Redirect root to login or vehicles based on auth state */}
+      <Route path="/" element={
+        user ? <Navigate to="/vehicles" replace /> : <Navigate to="/login" replace />
+      } />
+      
+      {/* Catch all route */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
 
 function App() {
   return (
     <VehicleProvider>
       <Router>
-        <Routes>
-          <Route element={<MobileLayout />}>
-            <Route path="/vehicles" element={<Vehicles />} />
-            <Route path="/service-records" element={<ServiceRecords />} />
-            <Route path="/maintenance" element={<Maintenance />} />
-            <Route path="/recalls" element={<Recalls />} />
-            <Route path="*" element={<Navigate to="/vehicles" replace />} />
-          </Route>
-        </Routes>
+        <AppRoutes />
       </Router>
     </VehicleProvider>
   );

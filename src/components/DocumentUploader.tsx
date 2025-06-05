@@ -6,9 +6,10 @@ import type { DocumentAnalysisResult } from '../types';
 
 type DocumentUploaderProps = {
   onAnalysisComplete?: (result: DocumentAnalysisResult, documentId: string) => void;
+  disabled?: boolean;
 };
 
-const DocumentUploader = ({ onAnalysisComplete }: DocumentUploaderProps) => {
+const DocumentUploader = ({ onAnalysisComplete, disabled = false }: DocumentUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
@@ -109,6 +110,7 @@ const DocumentUploader = ({ onAnalysisComplete }: DocumentUploaderProps) => {
                 type="button"
                 className="text-primary-600 hover:text-primary-500 focus:outline-none"
                 onClick={handleUploadClick}
+                disabled={disabled}
               >
                 browse
               </button>
@@ -128,6 +130,7 @@ const DocumentUploader = ({ onAnalysisComplete }: DocumentUploaderProps) => {
                 type="button"
                 className="btn-secondary text-sm py-1 px-3"
                 onClick={() => setSelectedFile(null)}
+                disabled={disabled}
               >
                 Remove
               </button>
@@ -135,7 +138,7 @@ const DocumentUploader = ({ onAnalysisComplete }: DocumentUploaderProps) => {
                 type="button"
                 className="btn-primary text-sm py-1 px-3"
                 onClick={handleAnalyze}
-                disabled={isAnalyzing || !selectedVehicle}
+                disabled={isAnalyzing || !selectedVehicle || disabled}
               >
                 {isAnalyzing ? 'Analyzing...' : 'Analyze Document'}
               </button>

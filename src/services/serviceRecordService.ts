@@ -80,6 +80,24 @@ export const createServiceRecord = async (
  */
 export const getServiceRecords = async (vehicleId: string): Promise<ServiceRecord[]> => {
   try {
+    console.log(`getServiceRecords: Fetching records for vehicle ID: ${vehicleId}`);
+    
+    // First, let's check if the record exists at all, regardless of vehicle ID
+    const { data: allRecords, error: allError } = await supabase
+      .from('service_records')
+      .select();
+      
+    if (allError) {
+      console.error('Error fetching all service records:', allError);
+    } else {
+      console.log(`Total service records in database: ${allRecords.length}`);
+      // Log all records to see their vehicle_id values
+      allRecords.forEach(record => {
+        console.log(`Record ID: ${record.id}, Vehicle ID: ${record.vehicle_id}, Date: ${record.service_date}`);
+      });
+    }
+    
+    // Now do the actual filtered query
     const { data, error } = await supabase
       .from('service_records')
       .select()
@@ -90,7 +108,8 @@ export const getServiceRecords = async (vehicleId: string): Promise<ServiceRecor
       console.error('Error fetching service records:', error);
       return [];
     }
-
+    
+    console.log(`Found ${data?.length || 0} records for vehicle ID ${vehicleId}:`, data);
     return data || [];
   } catch (error) {
     console.error('Exception fetching service records:', error);

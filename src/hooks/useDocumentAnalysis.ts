@@ -31,7 +31,9 @@ export const useDocumentAnalysis = () => {
           quality: 0.95,
         });
         // heic2any returns a Blob or an array of Blobs
-        targetFile = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob as Blob;
+        const blob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
+        // Convert Blob to File to maintain compatibility
+        targetFile = new File([blob], file.name.replace(/\.heic$/i, '.jpg'), { type: 'image/jpeg', lastModified: Date.now() });
       } catch (err) {
         throw new Error('Failed to convert HEIC to JPEG: ' + (err instanceof Error ? err.message : String(err)));
       }
@@ -133,7 +135,11 @@ export const useDocumentAnalysis = () => {
       
       setProgress(80);
       
+      // Log the analysis result for debugging
+      console.log('Raw analysis result from OpenAI:', JSON.stringify(analysisResult));
+      
       // Save document record in Supabase
+      // Note: service_record_id will be updated later when the service record is saved
       const { data: documentData, error: dbError } = await supabase
         .from('documents')
         .insert({
@@ -143,7 +149,8 @@ export const useDocumentAnalysis = () => {
           file_url: publicUrl,
           file_size: file.size,
           analyzed: true,
-          analysis_result: analysisResult
+          analysis_result: analysisResult,
+          service_record_id: null // Will be updated after service record is created
         })
         .select('id')
         .single();

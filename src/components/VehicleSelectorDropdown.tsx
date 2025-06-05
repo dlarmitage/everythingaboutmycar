@@ -75,12 +75,17 @@ export default function VehicleSelectorDropdown({
                 {({ active }) => (
                   <button
                     onClick={() => {
-                      // Update context if no external handler
-                      if (!onVehicleSelect) {
+                      // Only update if the vehicle is different from the current selection
+                      if (selectedVehicle?.id !== vehicle.id) {
+                        console.log(`Vehicle selected in dropdown: ${vehicle.id}`);
+                        
+                        // Update the app context
                         setSelectedVehicle(vehicle);
-                      } else {
-                        // Call the external handler
-                        onVehicleSelect(vehicle.id);
+                        
+                        // Also call the external handler if provided
+                        if (onVehicleSelect) {
+                          onVehicleSelect(vehicle.id);
+                        }
                       }
                     }}
                     className={[

@@ -4,7 +4,7 @@ import type { AppContextType, Vehicle, Profile, MaintenanceRecord, Document, Rec
 import { supabase } from '../services/supabase';
 import { getServiceRecords, getServiceItems } from '../services/serviceRecordService';
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 type AppProviderProps = {
   children: ReactNode;
@@ -52,20 +52,24 @@ export const AppProvider = ({ children }: AppProviderProps) => {
             }
             // If profile doesn't exist, create it
             else if (profileError.code === 'PGRST116') {
+              // Ensure all required fields are properly typed
               const newProfile = {
                 id: session.user.id,
                 email: session.user.email || '', // Ensure email is never undefined
                 first_name: session.user.user_metadata?.first_name || '',
                 last_name: session.user.user_metadata?.last_name || '',
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
+                avatar_url: null,
+                updated_at: new Date().toISOString(),
+                notification_preferences: {}
               };
               
               // Fix TypeScript error by ensuring we're passing a properly typed object
               const { data: createdProfile, error: createError } = await supabase
                 .from('profiles')
-                .insert({
+                .insert([{ // Use array syntax for insert
                   id: newProfile.id,
-                  email: newProfile.email,
+                  email: newProfile.email, // Email is required and must be a string
                   first_name: newProfile.first_name,
                   last_name: newProfile.last_name,
                   created_at: newProfile.created_at,
@@ -73,7 +77,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
                   avatar_url: null,
                   updated_at: new Date().toISOString(),
                   notification_preferences: {}
-                })
+                }])
                 .select()
                 .single();
                   
@@ -162,17 +166,21 @@ export const AppProvider = ({ children }: AppProviderProps) => {
               }
               // If profile doesn't exist, create it
               else if (profileError.code === 'PGRST116') {
-                const newProfile = {
-                  id: session.user.id,
-                  email: session.user.email,
-                  first_name: session.user.user_metadata?.first_name || '',
-                  last_name: session.user.user_metadata?.last_name || '',
-                  created_at: new Date().toISOString()
-                };
+                // Ensure email is never undefined to satisfy TypeScript
+                const email = session.user.email || '';
                 
                 const { data: createdProfile, error: createError } = await supabase
                   .from('profiles')
-                  .insert([newProfile])
+                  .insert([{
+                    id: session.user.id,
+                    email: email, // Email is required and must be a string
+                    first_name: session.user.user_metadata?.first_name || '',
+                    last_name: session.user.user_metadata?.last_name || '',
+                    created_at: new Date().toISOString(),
+                    avatar_url: null,
+                    updated_at: new Date().toISOString(),
+                    notification_preferences: {}
+                  }])
                   .select()
                   .single();
                   
@@ -267,22 +275,31 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
   
   const refreshServiceRecords = async () => {
-    if (!selectedVehicle) return;
+    if (!selectedVehicle) {
+      console.log('No vehicle selected, skipping service record refresh');
+      return;
+    }
     
     try {
+      console.log(`Fetching service records for vehicle ID: ${selectedVehicle.id}`);
+      
       // Get all service records for the selected vehicle
       const records = await getServiceRecords(selectedVehicle.id);
+      console.log(`Retrieved ${records.length} service records:`, records);
       setServiceRecords(records);
       
       // Get all service items for these records
       if (records.length > 0) {
         let allItems: ServiceItem[] = [];
         for (const record of records) {
+          console.log(`Fetching service items for record ID: ${record.id}`);
           const items = await getServiceItems(record.id);
+          console.log(`Retrieved ${items.length} service items for record ${record.id}:`, items);
           allItems = [...allItems, ...items];
         }
         setServiceItems(allItems);
       } else {
+        console.log('No service records found, clearing service items');
         setServiceItems([]);
       }
     } catch (error) {
@@ -367,18 +384,20 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   // Update data when selected vehicle changes
   useEffect(() => {
     if (selectedVehicle) {
+      console.log(`Vehicle selected in context, ID: ${selectedVehicle.id}, refreshing data`);
       refreshMaintenanceRecords();
       refreshServiceRecords();
       refreshDocuments();
       refreshRecallNotices();
     } else {
+      // Clear all data when no vehicle is selected
       setMaintenanceRecords([]);
       setServiceRecords([]);
       setServiceItems([]);
       setDocuments([]);
       setRecallNotices([]);
     }
-  }, [selectedVehicle]);
+  }, [selectedVehicle?.id]); // Only depend on the ID, not the entire vehicle object
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

@@ -19,7 +19,7 @@ export type Database = {
           file_type: string
           file_url: string
           id: string
-          maintenance_record_id: string | null
+          service_record_id: string | null
           updated_at: string
           vehicle_id: string
         }
@@ -32,7 +32,7 @@ export type Database = {
           file_type: string
           file_url: string
           id?: string
-          maintenance_record_id?: string | null
+          service_record_id?: string | null
           updated_at?: string
           vehicle_id: string
         }
@@ -45,7 +45,7 @@ export type Database = {
           file_type?: string
           file_url?: string
           id?: string
-          maintenance_record_id?: string | null
+          service_record_id?: string | null
           updated_at?: string
           vehicle_id?: string
         }

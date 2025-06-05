@@ -1,15 +1,16 @@
-import { useState } from 'react';
-import VehicleSelectorDropdown from '../components/VehicleSelectorDropdown';
-import ServiceRecordModal from '../components/ServiceRecordModal';
-
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import ServiceRecordModal from '../components/ServiceRecordModal';
+import VehicleSelectorDropdown from '../components/VehicleSelectorDropdown';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function ServiceRecords() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedServiceRecordId, setSelectedServiceRecordId] = useState<string | null>(null);
-  const { vehicles, refreshVehicles, user, refreshServiceRecords } = useApp();
+  const { vehicles, refreshVehicles, user, refreshServiceRecords, setSelectedVehicle } = useApp();
 
   useEffect(() => {
     if (user && vehicles.length === 0) {
@@ -19,10 +20,44 @@ export default function ServiceRecords() {
 
   const { serviceRecords, serviceItems } = useApp();
   
+  // Initialize from URL params on first load
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const vehicleId = params.get('vehicleId');
+    
+    if (vehicleId) {
+      console.log(`Found vehicle ID in URL: ${vehicleId}`);
+      setSelectedVehicleId(vehicleId);
+      
+      // Also update the global context
+      const vehicle = vehicles.find(v => v.id === vehicleId);
+      if (vehicle) {
+        setSelectedVehicle(vehicle);
+      }
+    }
+  }, [location.search, vehicles, setSelectedVehicle]);
+  
+  // Update URL when vehicle is selected
+  useEffect(() => {
+    if (selectedVehicleId) {
+      console.log(`Updating URL with vehicle ID: ${selectedVehicleId}`);
+      navigate(`/service-records?vehicleId=${selectedVehicleId}`, { replace: true });
+    } else {
+      navigate('/service-records', { replace: true });
+    }
+  }, [selectedVehicleId, navigate]);
+  
   // Filter service records by selected vehicle if one is selected
   const filteredRecords = selectedVehicleId 
     ? serviceRecords.filter(record => record.vehicle_id === selectedVehicleId)
     : serviceRecords;
+    
+  // Debug log the filtered records once when they change
+  useEffect(() => {
+    if (selectedVehicleId && filteredRecords.length > 0) {
+      console.log(`Found ${filteredRecords.length} records for vehicle ${selectedVehicleId}`);
+    }
+  }, [filteredRecords.length, selectedVehicleId]);
   return (
     <div className="p-4 pb-20">
       <div className="flex justify-between items-center mb-4">
@@ -34,25 +69,28 @@ export default function ServiceRecords() {
           />
         </div>
         <button
-          className="rounded-full bg-blue-600 text-white w-10 h-10 flex items-center justify-center shadow-lg"
+          className={`rounded-full w-10 h-10 flex items-center justify-center shadow-lg ${selectedVehicleId ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
           onClick={() => {
-            if (vehicles.length > 0 && !selectedVehicleId) {
-              // If no vehicle is selected, select the first one
-              setSelectedVehicleId(vehicles[0].id);
+            // Only open modal if a vehicle is selected
+            if (selectedVehicleId) {
+              // Clear selected service record ID for new records
+              setSelectedServiceRecordId(null);
+              setModalOpen(true);
             }
-            // Clear selected service record ID for new records
-            setSelectedServiceRecordId(null);
-            setModalOpen(true);
           }}
+          disabled={!selectedVehicleId}
           aria-label="Add Service Record"
+          title={selectedVehicleId ? 'Add Service Record' : 'Select a vehicle first'}
         >
           <span className="text-2xl">+</span>
         </button>
       </div>
-      {/* TODO: Vehicle switcher here */}
+      {/* Service records grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredRecords.length === 0 ? (
-          <div className="text-gray-400 text-center mt-20 col-span-full">No service records yet.</div>
+        {!selectedVehicleId ? (
+          <div className="text-gray-400 text-center mt-20 col-span-full">Please select a vehicle to view service records.</div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="text-gray-400 text-center mt-20 col-span-full">No service records yet for this vehicle.</div>
         ) : (
           filteredRecords.map(record => {
             // Find service items for this record
@@ -147,8 +185,11 @@ export default function ServiceRecords() {
                 }
                 setModalOpen(false);
                 setSelectedServiceRecordId(null);
+                
+                // Return the saved record for document linking
+                return result.record;  
               }
-              return Promise.resolve();
+              return null;
             } catch (error) {
               console.error('Error saving service record:', error);
               return Promise.reject(error);

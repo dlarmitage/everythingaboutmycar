@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "bash -c 'kill $(lsof -t -i:5173-5180 2>/dev/null) 2>/dev/null || true && vite'",
     "api": "bash -c 'kill $(lsof -t -i:3001 2>/dev/null) 2>/dev/null || true && node server.js'",
-    "dev:all": "concurrently \"npm run api\" \"npm run dev\"",
+    "kill-servers": "bash -c 'kill $(lsof -t -i:3001,3005,5173-5180 2>/dev/null) 2>/dev/null || true'",
+    "dev:all": "npm run kill-servers && concurrently \"npm run api\" \"npm run dev\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -15,6 +16,7 @@
     "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.49.8",
+    "axios": "^1.9.0",
     "canvas-confetti": "^1.9.3",
     "concurrently": "^8.2.2",
     "cors": "^2.8.5",
@@ -31,6 +33,7 @@
     "react-router-dom": "^7.6.1",
     "recharts": "^2.15.3",
     "tw-elements-react": "^1.0.0-alpha-end",
+    "uuid": "^11.1.0",
     "workbox-window": "^7.3.0"
   },
   "devDependencies": {

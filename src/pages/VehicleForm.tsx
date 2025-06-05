@@ -83,11 +83,21 @@ const VehicleForm = () => {
       const file = e.target.files[0];
       setImageFile(file);
       
-      // Create a preview
+      // Create a preview with proper error handling
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+      
+      reader.onload = () => {
+        if (reader.readyState === FileReader.DONE) {
+          setImagePreview(reader.result as string);
+        }
       };
+      
+      reader.onerror = () => {
+        console.error('Error reading image file');
+        setError('Failed to preview the selected image. Please try another file.');
+      };
+      
+      // Start reading after setting up handlers
       reader.readAsDataURL(file);
     }
   };

@@ -1,11 +1,11 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import ImageUploadModal from './ImageUploadModal';
-
-const VEHICLE_PLACEHOLDER = 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/car.svg';
-
-import type { Vehicle } from '../types';
 import { useApp } from '../context/AppContext';
 import { updateVehicleImage } from '../services/vehicleService';
+import type { Vehicle } from '../types';
+
+const VEHICLE_PLACEHOLDER = 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/car.svg';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -20,13 +20,85 @@ function VehicleImage({ imageUrl, make, model, onImageClick }: {
   model: string;
   onImageClick: () => void;
 }) {
+  const [imageError, setImageError] = useState(false);
+  
+  useEffect(() => {
+    // Reset image error when imageUrl changes
+    setImageError(false);
+  }, [imageUrl]);
+  
+  // Get a brand-specific placeholder based on the make
+  const getBrandPlaceholder = () => {
+    const makeFormatted = make?.toLowerCase() || '';
+    if (makeFormatted.includes('ford')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/ford.svg';
+    } else if (makeFormatted.includes('jeep') || makeFormatted.includes('chrysler') || 
+               makeFormatted.includes('dodge') || makeFormatted.includes('ram')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/chrysler.svg';
+    } else if (makeFormatted.includes('subaru')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/subaru.svg';
+    } else if (makeFormatted.includes('toyota')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/toyota.svg';
+    } else if (makeFormatted.includes('honda')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/honda.svg';
+    } else if (makeFormatted.includes('chevrolet') || makeFormatted.includes('chevy') || 
+               makeFormatted.includes('gmc')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/chevrolet.svg';
+    } else if (makeFormatted.includes('bmw')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/bmw.svg';
+    } else if (makeFormatted.includes('audi')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/audi.svg';
+    } else if (makeFormatted.includes('mercedes') || makeFormatted.includes('benz')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/mercedes.svg';
+    } else if (makeFormatted.includes('volkswagen') || makeFormatted.includes('vw')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/volkswagen.svg';
+    } else if (makeFormatted.includes('volvo')) {
+      return 'https://cdn.jsdelivr.net/gh/edent/SuperTinyIcons/images/svg/volvo.svg';
+    } else {
+      return VEHICLE_PLACEHOLDER;
+    }
+  };
+  
+  // Check if the URL is valid (not null, undefined, or empty)
+  const isValidUrl = imageUrl && imageUrl !== VEHICLE_PLACEHOLDER;
+  
+  // Process the image URL to ensure it works correctly with Supabase storage
+  const processedImageUrl = useMemo(() => {
+    if (!isValidUrl) return imageUrl;
+    
+    // Always route through our proxy endpoint for consistent handling
+    // Make sure the URL is properly encoded
+    console.log('Processing vehicle image URL:', imageUrl);
+    return `http://localhost:3005/api/proxy-image?url=${encodeURIComponent(imageUrl)}`;
+  }, [imageUrl, isValidUrl]);
+  
   return (
     <div className="relative">
-      <img
-        className="rounded-t-lg w-full h-48 object-cover"
-        src={imageUrl}
-        alt={`${make} ${model}`}
-      />
+      {isValidUrl && !imageError ? (
+        <img
+          className="rounded-t-lg w-full h-48 object-cover"
+          src={processedImageUrl}
+          alt={`${make} ${model}`}
+          onError={(_: React.SyntheticEvent<HTMLImageElement, Event>) => {
+            // Log error but don't include the event object itself
+            console.error(`Error loading image for ${make} ${model} with URL: ${processedImageUrl}`);
+            // Set error state to trigger fallback
+            setImageError(true);
+          }}
+          loading="lazy"
+        />
+      ) : (
+        <div className="rounded-t-lg w-full h-48 flex items-center justify-center bg-gray-100">
+          <img 
+            src={getBrandPlaceholder()} 
+            alt={`${make} ${model} logo`}
+            onError={() => {
+              console.error(`Error loading brand placeholder for ${make}`);
+            }}
+            className="h-24 w-24"
+          />
+        </div>
+      )}
       <button 
         onClick={onImageClick}
         className="absolute bottom-2 right-2 bg-blue-600 text-white p-2 rounded-full shadow-md hover:bg-blue-700 focus:outline-none"
@@ -41,9 +113,15 @@ function VehicleImage({ imageUrl, make, model, onImageClick }: {
 }
 
 export default function VehicleCard({ vehicle, onDetails, onOpenServiceRecordModal }: VehicleCardProps) {
-  const { setSelectedVehicle, refreshVehicles } = useApp();
+  const { setSelectedVehicle, refreshVehicles, selectedVehicle } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [updatedImageUrl, setUpdatedImageUrl] = useState<string | null>(null);
+  const location = useLocation();
+  
+  // Check if this vehicle is selected either in the app context or in the URL
+  const params = new URLSearchParams(location.search);
+  const urlVehicleId = params.get('vehicleId');
+  const isSelected = selectedVehicle?.id === vehicle.id || urlVehicleId === vehicle.id;
   
   // Use updated image URL if available, otherwise use the vehicle's image URL or placeholder
   const imageUrl = updatedImageUrl || vehicle.image_url || VEHICLE_PLACEHOLDER;
@@ -63,21 +141,26 @@ export default function VehicleCard({ vehicle, onDetails, onOpenServiceRecordMod
       const updatedVehicle = await updateVehicleImage(vehicle.id, newImageUrl);
       
       if (updatedVehicle) {
+        console.log('Vehicle updated successfully with new image URL:', newImageUrl);
         // Update the vehicle in the context
         setSelectedVehicle(updatedVehicle);
         // Refresh the vehicles list
         await refreshVehicles();
+      } else {
+        console.error('Failed to update vehicle in database, but keeping local state updated');
       }
     } catch (error) {
       console.error('Error saving vehicle image:', error);
-      // Revert to original image if there was an error
-      setUpdatedImageUrl(null);
+      // Keep the updated URL in local state even if database update fails
+      // This ensures the user sees the new image immediately
     } finally {
       setIsModalOpen(false);
     }
   }, [vehicle.id, setSelectedVehicle, refreshVehicles]);
   return (
-    <div className="block rounded-lg bg-white shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] w-full min-w-[250px]">
+    <div className={`block rounded-lg bg-white w-full min-w-[250px] transition-all duration-200 ${isSelected 
+      ? 'shadow-[0_0_15px_rgba(59,130,246,0.5)] ring-2 ring-blue-400' 
+      : 'shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)]'}`}>
       <div className="block w-full">
         <div 
           className="relative overflow-hidden bg-cover bg-no-repeat w-full"
@@ -134,6 +217,7 @@ export default function VehicleCard({ vehicle, onDetails, onOpenServiceRecordMod
           onClose={() => setIsModalOpen(false)}
           onSave={handleSaveImage}
           vehicleDetails={{
+            id: vehicle.id,
             year: vehicle.year?.toString() || '',
             make: vehicle.make || '',
             model: vehicle.model || '',

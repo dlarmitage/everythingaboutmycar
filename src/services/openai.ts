@@ -15,60 +15,74 @@ const openai = new OpenAI({
  * The comprehensive prompt for analyzing vehicle maintenance receipts
  */
 const VEHICLE_DOCUMENT_ANALYSIS_PROMPT = `
-Analyze this vehicle maintenance receipt image and extract all available information into a structured JSON format. Include the following categories and fields if present:
+Analyze this vehicle maintenance receipt image and extract all available information into the EXACT structured JSON format specified below. Follow this schema precisely:
 
-1. Customer Information:
-   - Full name
-   - Address/location
-   - Phone number
-   - Email address
+{
+  "customer": {
+    "name": "string or null",
+    "address": "string or null",
+    "phone": "string or null",
+    "email": "string or null"
+  },
+  "vehicle": {
+    "make": "string or null",
+    "model": "string or null",
+    "year": "number or null",
+    "vin": "string or null",
+    "license_plate": "string or null",
+    "odometer": "number or null",
+    "odometer_unit": "miles or km or null",
+    "engine": "string or null"
+  },
+  "service_information": {
+    "service_date": "YYYY-MM-DD format or null",
+    "invoice_number": "string or null",
+    "service_provider": "string or null",
+    "technician": "string or null",
+    "location": "string or null"
+  },
+  "services": [
+    {
+      "category": "string (e.g., 'Oil Change', 'Brake Service', etc.)",
+      "description": "string",
+      "details": {
+        // Any relevant specifications like oil_type, filter_type, etc.
+      },
+      "parts_replaced": ["string", "string"],
+      "quantity": "number or null",
+      "quantity_unit": "string or null",
+      "price": "number or null"
+    }
+  ],
+  "inspections": [
+    {
+      "type": "string",
+      "result": "string",
+      "notes": "string or null"
+    }
+  ],
+  "payment": {
+    "subtotal": "number or null",
+    "tax": "number or null",
+    "discount": "number or null",
+    "total": "number or null",
+    "method": "string or null"
+  },
+  "additional_information": {
+    "warranty": "string or null",
+    "recommended_next_service_date": "YYYY-MM-DD format or null",
+    "recommended_next_service_mileage": "number or null",
+    "notes": "string or null"
+  }
+}
 
-2. Vehicle Details:
-   - Make
-   - Model
-   - Year
-   - VIN number
-   - License plate
-   - Odometer reading (specify miles or kilometers)
-   - Engine type/size
-
-3. Service Information:
-   - Service date
-   - Invoice/receipt number
-   - Service provider name and location
-   - Technician name (if available)
-
-4. Services Performed (for each service item):
-   - Category (e.g., Oil & Filters, Brakes, Transmission, etc.)
-   - Description of service
-   - Detailed specifications (e.g., oil type, filter numbers, part numbers)
-   - Quantity and units (if applicable)
-   - Individual price
-   - Any notes or recommendations
-
-5. Parts and Materials:
-   - Part names
-   - Part numbers
-   - Quantities
-   - Individual prices
-
-6. Fluid Checks/Inspections Performed:
-   - List all inspections mentioned (e.g., tire pressure, fluid levels)
-   - Status or results of each inspection
-
-7. Payment Information:
-   - Subtotal
-   - Taxes (separated by type if available)
-   - Discounts or coupons applied
-   - Total amount
-   - Payment method
-
-8. Additional Information:
-   - Warranty information
-   - Recommended next service date or mileage
-   - Any special notes or comments
-
-Format the response as a clean, well-structured JSON object with appropriate nesting. Convert all monetary values to numeric format without currency symbols. For dates, use ISO format (YYYY-MM-DD).
+Important rules:
+1. Convert all monetary values to numeric format without currency symbols
+2. Use ISO format dates (YYYY-MM-DD)
+3. Use null for missing values, not empty strings
+4. For odometer readings, extract just the numeric value and specify the unit separately
+5. Include all service items with their details
+6. Follow the exact field names shown above
 `;
 
 /**
@@ -152,6 +166,8 @@ export const analyzePdf = async (pdfText: string): Promise<any> => {
  * @returns Formatted result matching our DocumentAnalysisResult type
  */
 const transformAnalysisResult = (rawResult: any) => {
+  console.log('Transforming raw OpenAI result:', rawResult);
+  
   // Extract vehicle information
   const vehicleInfo = {
     make: rawResult.vehicle?.make,
@@ -185,12 +201,15 @@ const transformAnalysisResult = (rawResult: any) => {
     maintenanceInfo.nextServiceMileage = rawResult.additional_information.recommended_next_service_mileage;
   }
 
-  // Return the formatted result
-  return {
+  // Return the formatted result with the complete raw data in otherInfo
+  const result = {
     vehicleInfo,
     maintenanceInfo,
     otherInfo: rawResult,
   };
+  
+  console.log('Transformed result:', result);
+  return result;
 };
 
 /**
