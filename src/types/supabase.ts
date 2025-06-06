@@ -242,6 +242,7 @@ export type Database = {
           notification_preferences: Json
           phone_number: string | null
           preferred_units: string | null
+          preferred_currency: string | null
           updated_at: string
         }
         Insert: {
